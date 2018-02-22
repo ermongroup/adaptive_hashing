@@ -98,7 +98,7 @@ error equal to 10%
 error equal to 5% (which is the default) and using for lower bound the
 number 30 (log base2 of the lower bound actually)
 
-        python3 f2.py --mode ub formula.cnf
+        python3 f2.py --mode ub --lower-bound 30 formula.cnf
 
 TODO (add more examples)
 
