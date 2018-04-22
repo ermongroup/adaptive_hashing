@@ -305,13 +305,17 @@ def main():
 def run(args):
     try:
         log.info('Running SharpSAT for quick test...')
-        tout, n, _ = sharpsat_count(conf.formula_filename, 5)
+        tout, n, ct = sharpsat_count(conf.formula_filename, 2)
         if not tout:
             if n > 1:
-                print('F2: Exact count (by SharpSAT) is {}'.format(n))
+                print('F2: Exact count (by SharpSAT) is {} (t={:.2f})'.format(n,
+                    ct))
+                print('F2Sharp:{}:{:.2f}:{:.2f}'.format(conf.formula_filename, math.log2(n), ct))
                 exit(0)
             elif n == 0:
                 print('F2: The formula is UNSAT (as reported by sharpSAT)')
+                print('F2Sharp:{}:{:.2f}:{:.2f}'.format(conf.formula_filename,
+                    0, ct))
                 exit(0)
             else:  # n == 1
                 log.info('The formula is either UNSAT or has 1 solution'
@@ -336,13 +340,17 @@ def run(args):
         elif conf.mode == 'ub':
             if math.isnan(args.lower_bound):
                 lb = find_lower_bound()
+                ct1 = consumed_time() - 2  # Remove the sharpsat time
             else:
                 lb = args.lower_bound
+                ct1 = 0
             ub_a, ub_b = find_upper_bound(lb)
-            pt = consumed_time()
-            print('F2: Lower bound is 2^{} and upper bound '
-                  'is {:.2f} * 2^{:.2f} (processor time: {:.2f})'
-                  ''.format(lb, ub_a, ub_b, pt))
+            ct2 = consumed_time()
+            print('F2: Lower bound is 2^{} (t={:.2f}) and upper bound '
+                  'is {:.2f} * 2^{:.2f} (total processor time: {:.2f})'
+                  ''.format(lb, ct1, ub_a, ub_b, ct2))
+            print('F2UB:{}:{}:{:.2f}:{:.2f}:{:.2f}'.format(conf.formula_filename, lb, ct1, math.log2(ub_a)
+                                                      + ub_b, ct2 - ct1))
         elif conf.mode == 'appr':
             if math.isnan(args.lower_bound):
                 lb = find_lower_bound()
@@ -465,15 +473,27 @@ def get_boost(constr):
     return r
 
 
-def generateConstraints(n_constr):
+def generateConstraints(n_constr, force_long=False):
+    if needLong(n_constr) or force_long:
+        return generateLong(n_constr)
+    else:
+        return generateLDPC(n_constr)
+
+
+def needLong(n_constr):
+    """
+    Are long constraints needed?
+    :param n_constr:
+    :return:
+    """
     assert n_constr > 0
     n = len(conf.ind_set)
     degn = conf.degn
     constr_length = math.ceil((n * degn) / n_constr)
-    if constr_length >= n/2:
-        return generateLong(n_constr)
+    if constr_length >= n / 2:
+        return True
     else:
-        return generateLDPC(n_constr)
+        return False
 
 
 def generateLong(n_constr):
@@ -750,6 +770,12 @@ def algorithm1(n_constr, n_iter):
     :return: True or False
     """
     assert(n_constr > 0)
+
+    # TODO: Fix the next line in case no indep. sup. is given
+    n_var = len(conf.ind_set)
+    if n_constr >= n_var:
+        return False
+
     threshold = conf.alg1_threshold_coeff * n_iter
     z = 0  # The capital Z in the paper
     answer = False
@@ -783,18 +809,26 @@ def algorithm2(lb, delta: float=math.nan, num_iter: int=math.nan):
     :return: (a,b) such that a*2^(b+1) is a rigorous upper bound
     """
     assert lb >= 1
+    force_long = False
     # Only one of delta or num_iter can be specified
     assert((not math.isnan(delta) and math.isnan(num_iter)) or
            (math.isnan(delta) and not math.isnan(num_iter)))
     if not math.isnan(num_iter):
         n_iter = num_iter
     else:
-        bst = get_boost(lb)  # B in the paper
+        bst = 1
+        if needLong(lb):
+            force_long = True
+        else:
+            bst = get_boost(lb)  # B in the paper
+            if bst == -1:
+                bst = 1
+                force_long = True
         n_iter = int(math.ceil(8*(bst+1)*math.log(1/float(delta))))
     z = 0
     for j in range(1, n_iter+1):
         t1 = time.process_time()
-        constraints = generateConstraints(lb)
+        constraints = generateConstraints(lb, force_long)
         aug_form = setup_augmented_formula(lb, constraints)
         t2 = time.process_time()
         max_time = min(conf.alg2_loop_timeout, remaining_time())
@@ -957,7 +991,10 @@ def codewordsl(l, n, i, dlist):
 
 
 def boostl(l, n, i):
-    d_l = list(range(1, zp(i, n)))
+    zeta = zp(i, n)
+    if zeta < 2:
+        return -1
+    d_l = list(range(1, zeta))
     s1 = sum(codewordsl(l, n, i, d_l))
     s2 = sum([sp.binomial(n, d2).evalf() for d2 in d_l])
     return s1 / s2
