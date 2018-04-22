@@ -904,7 +904,7 @@ def zp(i, n):
 
 def power_productl(cel1, ex1, cel2, ex2, order):
     assert order > 0
-    assert ex1 > 0 and ex2 > 0
+    assert ex1 > 0
     # Sort the list by increasing exponent
     cel1s = sorted(cel1, key=lambda x: x[1])
     cel2s = sorted(cel2, key=lambda x: x[1])
