@@ -1001,6 +1001,10 @@ def boostl(l, n, i):
 
 
 def boost(l, n, i):
+    # if the constraint length is >= n/2 then we use long constraints
+    if math.ceil((n * l) / i) >= n/2:
+        return 1
+
     if l * n / i == rfloor(l, n, i) and rfloor(l, n, i) % 2 == 0:
         return boostl(l, n + 1, i) * 2 ** i
     else:
