@@ -448,9 +448,16 @@ def extract_independent_support():
     global formula_lines  # The lines of the cnf file
     indset = set()
     for l in formula_lines:
-        if l.startswith('c ind'):
+        if l.lower().startswith('c ind'):
             for s in l.split(' ')[2:-1]:
                 indset.add(int(s))
+        if str(l.strip()[0:5]).lower() == 'p cnf':
+            fields = l.strip().split(' ')
+            num_variables = int(fields[2])
+    # if no 'c ind' variables are given, then all variables are presumed to
+    # belong to the IS
+    if len(indset) == 0:
+        indset = range(1, num_variables + 1)
     return list(indset)
 
 
@@ -590,7 +597,7 @@ def setup_augmented_formula(n_constr, constraints):
     outputfile = os.path.join(conf.working_dir, augmented_filename)
     with open(outputfile, 'w') as ofile:
         for iline in formula_lines:
-            if str(iline.strip()[0:5]) == 'p cnf':
+            if str(iline.strip()[0:5]).lower() == 'p cnf':
                 fields = iline.strip().split(' ')
                 num_variables = int(fields[2])
                 num_clauses = int(fields[3]) + n_constr
