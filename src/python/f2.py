@@ -6,11 +6,11 @@ import time
 import math
 import random
 import os
+import os.path
 import shlex
 import subprocess
 import networkx as nx
 from networkx.algorithms import bipartite
-import os.path
 import sympy as sp
 import scipy.optimize
 import logging as log
@@ -19,9 +19,11 @@ import logging as log
 class Config:
     def __init__(self):
         self.formula_filename = None
-        self.ind_set = None  # list of ind. set variables, if None no ind. set
+        self.has_ind_header = None
+        self.var_set = None  # list of variables used in the constraints
         self.working_dir = None
         self.keep_cnf = False
+        self.skip_sharpsat = False
         self.random_seed = None
         self.mode = None
         self.default_error_prob = 0.05
@@ -58,7 +60,8 @@ class Config:
             self.formula_filename = args.input_filename
             with open(args.input_filename, 'r') as f:
                 formula_lines = f.readlines()
-                self.ind_set = extract_independent_support()
+                self.var_set, self.has_ind_header = \
+                    extract_support_vars()
         if args.working_dir == '':
             conf.working_dir = os.getcwd()
         elif not os.path.isdir(args.working_dir):
@@ -68,6 +71,7 @@ class Config:
             conf.working_dir = args.working_dir
             os.chdir(conf.working_dir)
         self.keep_cnf = args.keep_cnf
+        self.skip_sharpsat = args.skip_sharpsat
         if args.random_seed >= 0:
             self.random_seed = args.random_seed
             random.seed(args.random_seed)
@@ -297,6 +301,8 @@ def main():
     parser.add_argument('--ub-n-iter', type=int,
                         help='Override num of iterations in algorithm 2',
                         default=math.nan)
+    parser.add_argument('--skip-sharpsat', action='store_true',
+                        help='Skip the SharpSAT invocation.')
     args = parser.parse_args()
     conf.setup(args)
     run(args)
@@ -304,42 +310,43 @@ def main():
 
 def run(args):
     try:
-        log.info('Running SharpSAT for quick test...')
-        tout, n, ct = sharpsat_count(conf.formula_filename, 2)
-        if not tout:
-            if n > 1:
-                print('F2: Exact count (by SharpSAT) is {} (t={:.2f})'.format(n,
-                    ct))
-                print('F2Sharp:{}:{:.2f}:{:.2f}'.format(conf.formula_filename, math.log2(n), ct))
-                exit(0)
-            elif n == 0:
-                print('F2: The formula is UNSAT (as reported by sharpSAT)')
-                print('F2Sharp:{}:{:.2f}:{:.2f}'.format(conf.formula_filename,
-                    0, ct))
-                exit(0)
-            else:  # n == 1
-                log.info('The formula is either UNSAT or has 1 solution'
-                         '\nRunning Cryptominisat to clarify...')
-                t, b, n, ctime = sat_count(conf.formula_filename,
-                                           conf.total_max_time, 2)
-                if t:
-                    raise TotalTimeoutException
-                elif b:
-                    log.warning('SharpSAT counted 1 and CMSat counted > 1.'
-                                'We will try to approximate!')
-                else:
-                    print('F2: Exact count (by Cryptominisat) is {}'.format(n))
+        if not conf.skip_sharpsat:
+            log.info('Running SharpSAT for quick test...')
+            tout, n, ct = sharpsat_count(conf.formula_filename, 2)
+            if not tout:
+                if n > 1:
+                    print('F2: Exact count (by SharpSAT) is {} '
+                          '(t={:.2f})'.format(n, ct))
+                    print('F2Sharp:{}:{:.2f}:{:.2f}'.format(
+                        conf.formula_filename, math.log2(n), ct))
+                    if conf.has_ind_header:
+                        print_sharpsat_warning()
                     exit(0)
-        else:
-            log.info('SharpSAT timed out. Proceeding...')
+                elif n == 0:
+                    log.info(
+                        'F2: The formula is UNSAT (as reported by sharpSAT)')
+                    print('F2: UNSAT')
+                    print('F2Sharp:{}:{:.2f}:{:.2f}'.format(
+                        conf.formula_filename, 0, ct))
+                    exit(0)
+                else:  # n == 1
+                    log.info('SharpSAT returned 1 which means that the formula'
+                             ' is either UNSAT or has 1 solution.')
+                    if is_unsat():
+                        print('F2: UNSAT')
+                        exit(0)
+            else:
+                log.info('SharpSAT timed out. Proceeding...')
         if conf.mode == 'lb':
-            lb = find_lower_bound()
+            lb_init = prepare_lower_bound()
+            lb = find_lower_bound(lb_init)
             pt = consumed_time()
             print('F2: Lower bound is 2^{} (processor time: {:.2f})'
                   ''.format(lb, pt))
         elif conf.mode == 'ub':
             if math.isnan(args.lower_bound):
-                lb = find_lower_bound()
+                lb_init = prepare_lower_bound()
+                lb = find_lower_bound(lb_init)
                 ct1 = consumed_time() - 2  # Remove the sharpsat time
             else:
                 lb = args.lower_bound
@@ -349,11 +356,13 @@ def run(args):
             print('F2: Lower bound is 2^{} (t={:.2f}) and upper bound '
                   'is {:.2f} * 2^{:.2f} (total processor time: {:.2f})'
                   ''.format(lb, ct1, ub_a, ub_b, ct2))
-            print('F2UB:{}:{}:{:.2f}:{:.2f}:{:.2f}'.format(conf.formula_filename, lb, ct1, math.log2(ub_a)
-                                                      + ub_b, ct2 - ct1))
+            print('F2UB:{}:{}:{:.2f}:{:.2f}:{:.2f}'.format(
+                  conf.formula_filename, lb, ct1,
+                  math.log2(ub_a) + ub_b, ct2 - ct1))
         elif conf.mode == 'appr':
             if math.isnan(args.lower_bound):
-                lb = find_lower_bound()
+                lb_init = prepare_lower_bound()
+                lb = find_lower_bound(lb_init)
             else:
                 lb = args.lower_bound
             if math.isnan(args.upper_bound):
@@ -387,13 +396,50 @@ def run(args):
     exit(0)
 
 
+def prepare_lower_bound():
+    few_solutions = 2**4
+    if len(conf.var_set) <= 10 :  # Take care of really "small" cases
+        t, b, n, ctime = sat_count(conf.formula_filename,
+                                   conf.total_max_time - 2, few_solutions)
+        if t:
+            raise TotalTimeoutException
+        elif n == 0:
+            print('F2: UNSAT')
+            exit(0)
+        elif n < few_solutions:
+            print('F2: The formula has exactly {} models'.format(n))
+            exit(0)
+        else:
+            return math.log2(few_solutions)
+    else:
+        if is_unsat():
+            print('F2: UNSAT')
+            exit(0)
+        else:
+            return 0
+
+
+def is_unsat():
+    t, b, n, ctime = sat_count(conf.formula_filename,
+                               conf.total_max_time - 2, 1)
+    if t:
+        raise TotalTimeoutException
+    elif b:
+        return False
+    else:
+        assert (n == 0)
+        return True
+
+
 def find_lower_bound(start=0):
     """
     Find a lower bound.
-    :param start: Optional number of constraints to start with
+
+    PRECONDITION: The formula should not be UNSAT.
+
     :return: The binary logarithm of the lower bound
     """
-    log.info('find_lower_bound(): phase 1 start={}'.format(start))
+    log.info('find_lower_bound(): phase 1')
     j = 0
     while algorithm1(start + 2**j, 1):
         j += 1
@@ -438,15 +484,21 @@ def find_upper_bound(lower):
         exit(201)
 
 
-def extract_independent_support():
+def extract_support_vars():
     """
-    Extract the independent support variables from lines starting with 'c ind'
+    Generate the set of vars over which to generate the constraints.
+    Extract the independent support or sampling set variables from header lines
+    (starting with 'c ind') in the cnf file if they exist.
+    Else return the set of all variables of the formula (as implied by the
+    'p' header line of the DIMACS cnf file).
+
     Uses the global var formula_lines which contains the list of lines of
     the cnf file
-    :return: A list of IS variables
+    :return: A list of variables
     """
     global formula_lines  # The lines of the cnf file
-    indset = set()
+    num_variables = -1
+    indset = set()  # The vars of the independent or sampling set, if any
     for l in formula_lines:
         if l.lower().startswith('c ind'):
             for s in l.split(' ')[2:-1]:
@@ -454,11 +506,14 @@ def extract_independent_support():
         if str(l.strip()[0:5]).lower() == 'p cnf':
             fields = l.strip().split(' ')
             num_variables = int(fields[2])
+    if num_variables == -1:
+        print('F2: Malformed input file. "P CNF" header line is missing!')
+        exit(300)
     # if no 'c ind' variables are given, then all variables are presumed to
-    # belong to the IS
+    # belong to the support
     if len(indset) == 0:
         indset = range(1, num_variables + 1)
-    return list(indset)
+    return list(indset), len(indset) > 0
 
 
 def get_boost(constr):
@@ -469,7 +524,7 @@ def get_boost(constr):
     """
     check_time()
     left_degree = conf.degn
-    n = len(conf.ind_set)
+    n = len(conf.var_set)
     if type(constr) == list:
         bs = [boost(left_degree, n, i) for i in constr]
         r = max(bs)
@@ -481,6 +536,8 @@ def get_boost(constr):
 
 
 def generateConstraints(n_constr, force_long=False):
+    if n_constr == 0:
+        return list()
     if needLong(n_constr) or force_long:
         return generateLong(n_constr)
     else:
@@ -494,7 +551,7 @@ def needLong(n_constr):
     :return:
     """
     assert n_constr > 0
-    n = len(conf.ind_set)
+    n = len(conf.var_set)
     degn = conf.degn
     constr_length = math.ceil((n * degn) / n_constr)
     if constr_length >= n / 2:
@@ -512,8 +569,8 @@ def generateLong(n_constr):
     :return: A list of constraints repr. as lists of strings ending with nl
     """
     assert n_constr > 0
-    n = len(conf.ind_set)
-    var_list = conf.ind_set
+    n = len(conf.var_set)
+    var_list = conf.var_set
     i = n_constr
     log.info('Generating Long: n_constr={}  n_var={}'.format(n_constr, n))
     clauses_l = []
@@ -541,8 +598,8 @@ def generateLDPC(n_constr):
     :return: A list of constraints repr. as lists of strings ending with nl
     """
     assert n_constr > 0
-    n = len(conf.ind_set)
-    var_list = conf.ind_set
+    n = len(conf.var_set)
+    var_list = conf.var_set
     degn = conf.degn  # Average var degree
     i = n_constr
     x = n * degn / i  # Average constraint degree
@@ -699,8 +756,7 @@ def execute_cmd(sh_cmd, timeout, output_parser, plain_timeout=False):
 
     except subprocess.TimeoutExpired as e:
         if not plain_timeout:
-            print('** Timeout from cmd {} (timeout={})'.format(e.cmd,
-                  e.timeout))
+            print('** ', str(e))
             assert False, 'Wrapper timeout triggered before command finishes.'
     finally:
         log.debug('Finished cmd: "{}" with return code:{} time:{}'.format(
@@ -777,9 +833,7 @@ def algorithm1(n_constr, n_iter):
     :return: True or False
     """
     assert(n_constr > 0)
-
-    # TODO: Fix the next line in case no indep. sup. is given
-    n_var = len(conf.ind_set)
+    n_var = len(conf.var_set)
     if n_constr >= n_var:
         return False
 
@@ -907,6 +961,18 @@ def F2_algorithm(lb_in, ub_in, delta_in: float, theta: float):
     else:
         j = kl[-1]
         return z_list[j]/n_iter, j
+
+
+def print_sharpsat_warning():
+    msg = """
+*** Important Notice: The result is produced by
+SharpSAT (https://github.com/marcthurley/sharpSAT/) 
+which ignores header lines starting with 'c ind' in the CNF input file.
+If the variables specified there represent an INDEPENDENT SUPPORT then you
+don't need to do anything. Otherwise ignore the result and run F2 again, 
+adding the '--skip-sharpsat' option to the command line.\
+"""
+    print(msg)
 
 
 # Boost Calculation related code below

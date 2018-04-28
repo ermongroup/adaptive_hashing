@@ -87,6 +87,9 @@ The acceptable options are:
                             (Optional) Override num of iterations in algorithm 1
       --ub-n-iter UB_N_ITER
                             (Optional) Override num of iterations in algorithm 2
+      --skip-sharpsat       Skip the SharpSAT invocation.
+
+Option names can be shrinked down to the smallest unambiguous prefix.
 
 ### Examples
 * Calculate a rigorous lower bound for `formula.cnf` with probability of
