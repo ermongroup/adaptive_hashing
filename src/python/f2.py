@@ -398,7 +398,7 @@ def run(args):
 
 def prepare_lower_bound():
     few_solutions = 2**4
-    if len(conf.var_set) <= 10 :  # Take care of really "small" cases
+    if len(conf.var_set) <= 10:  # Take care of really "small" cases
         t, b, n, ctime = sat_count(conf.formula_filename,
                                    conf.total_max_time - 2, few_solutions)
         if t:
@@ -535,13 +535,13 @@ def get_boost(constr):
     return r
 
 
-def generateConstraints(n_constr, force_long=False):
+def generateConstraints(n_constr, degn, force_long=False, dummy_vars=0):
     if n_constr == 0:
         return list()
     if needLong(n_constr) or force_long:
         return generateLong(n_constr)
     else:
-        return generateLDPC(n_constr)
+        return generateLDPC(n_constr, dummy_vars, degn)
 
 
 def needLong(n_constr):
@@ -558,6 +558,17 @@ def needLong(n_constr):
         return True
     else:
         return False
+
+
+def need_dummy_var(l, n, i):
+    """
+    Do we need an extra "dummy" var in the constraint creation
+    :param l:         Left (Variable) degree
+    :param n:         Num of variables
+    :param i:         Num of constraints
+    :return: True/False
+    """
+    return l * n / i == rfloor(l, n, i) and rfloor(l, n, i) % 2 == 0
 
 
 def generateLong(n_constr):
@@ -589,19 +600,28 @@ def generateLong(n_constr):
     return clauses_l
 
 
-def generateLDPC(n_constr):
+def generateLDPC(n_constr, extra_vars, degn):
     """
     Generate the constraints corresponding to an LDPC code.
-    The independent set if any and the var degree are taken from the
-    configuration.
-    :param n_constr: The number of constraints to generate
+    The variable set is taken from the configuration. If extra_vars > 0, a
+    number of "dummy" vars participate in the generation of the constraints.
+
+    :param n_constr:    The number of constraints to generate
+    :param extra_vars:  Number of extra variables
+    :param degn:        Average variable (left) degree
+
     :return: A list of constraints repr. as lists of strings ending with nl
     """
     assert n_constr > 0
-    n = len(conf.var_set)
-    var_list = conf.var_set
-    degn = conf.degn  # Average var degree
-    i = n_constr
+    assert extra_vars >= 0
+    n0 = len(conf.var_set)
+    if extra_vars == 0:
+        var_list = conf.var_set
+    else:
+        var_list = conf.var_set.copy()
+        var_list.extend(range(n0 + 1, n0 + extra_vars + 1))
+    n = len(var_list)
+    i = int(n_constr)
     x = n * degn / i  # Average constraint degree
     log.info('Generating LDPC: n_constr={}  n_var={} var_degree={}  '
              'constr_degree={:.1f}'.format(n_constr, n, degn, x))
@@ -842,7 +862,7 @@ def algorithm1(n_constr, n_iter):
     answer = False
     for i in range(1, n_iter+1):
         t1 = time.process_time()
-        constraints = generateConstraints(n_constr)
+        constraints = generateConstraints(n_constr, conf.degn)
         aug_form = setup_augmented_formula(n_constr, constraints)
         t2 = time.process_time()
         max_time = min(conf.alg1_loop_timeout, remaining_time() + 1)
@@ -867,7 +887,7 @@ def algorithm2(lb, delta: float=math.nan, num_iter: int=math.nan):
     :param lb: Floor of the binary log of the lower bound ('l' in the paper)
     :param delta: error probability
     :param num_iter: bypass the rigorous computation and give num of iterations
-    :return: (a,b) such that a*2^(b+1) is a rigorous upper bound
+    :return: (a,b) such that a*2^b is a rigorous upper bound
     """
     assert lb >= 1
     force_long = False
@@ -882,14 +902,17 @@ def algorithm2(lb, delta: float=math.nan, num_iter: int=math.nan):
             force_long = True
         else:
             bst = get_boost(lb)  # B in the paper
-            if bst == -1:
-                bst = 1
+            if bst == 1:
                 force_long = True
         n_iter = int(math.ceil(8*(bst+1)*math.log(1/float(delta))))
     z = 0
     for j in range(1, n_iter+1):
         t1 = time.process_time()
-        constraints = generateConstraints(lb, force_long)
+        if not need_dummy_var(conf.degn, len(conf.var_set), lb):
+            constraints = generateConstraints(lb, conf.degn, force_long)
+        else:
+            constraints = generateConstraints(lb, conf.degn, force_long,
+                                              dummy_vars=1)
         aug_form = setup_augmented_formula(lb, constraints)
         t2 = time.process_time()
         max_time = min(conf.alg2_loop_timeout, remaining_time())
@@ -904,7 +927,12 @@ def algorithm2(lb, delta: float=math.nan, num_iter: int=math.nan):
             raise SolverBoundsExceededException(
                 'Algorithm2: timeout={}, cutoff={}'.format(t, b))
         z += n
-    return z/float(n_iter), lb+1
+    b = z / float(n_iter)
+    if not need_dummy_var(conf.degn, len(conf.var_set), lb):
+        e = lb + 1
+    else:
+        e = lb
+    return b, e
 
 
 def F2_algorithm(lb_in, ub_in, delta_in: float, theta: float):
@@ -940,10 +968,15 @@ def F2_algorithm(lb_in, ub_in, delta_in: float, theta: float):
     z_list = [0 for _ in range(lb, ub+1)]
 
     f2_alg_loop_timeout = remaining_time() / min(5, n_iter*(ub-lb+1))
+    force_long = needLong(lb)
     for j in range(1, n_iter+1):
-        ldpc = generateConstraints(ub)
+        if not need_dummy_var(conf.degn, len(conf.var_set), lb):
+            constraints = generateConstraints(lb, conf.degn, force_long)
+        else:
+            constraints = generateConstraints(lb, conf.degn, force_long,
+                                              dummy_vars=1)
         for i in range(lb, ub+1):
-            aug_form = setup_augmented_formula(i, ldpc)
+            aug_form = setup_augmented_formula(i, constraints)
             max_time = min(f2_alg_loop_timeout, remaining_time())
             tp, _, y, ctime = sat_count(aug_form, max_time, b)
             if not conf.keep_cnf:
@@ -959,7 +992,10 @@ def F2_algorithm(lb_in, ub_in, delta_in: float, theta: float):
     if not kl:
         return -1, -1
     else:
-        j = kl[-1]
+        if not need_dummy_var(conf.degn, len(conf.var_set), lb):
+            j = kl[-1]
+        else:
+            j = kl[-1] - 1
         return z_list[j]/n_iter, j
 
 
@@ -1066,7 +1102,7 @@ def codewordsl(l, n, i, dlist):
 def boostl(l, n, i):
     zeta = zp(i, n)
     if zeta < 2:
-        return -1
+        return 1
     d_l = list(range(1, zeta))
     s1 = sum(codewordsl(l, n, i, d_l))
     s2 = sum([sp.binomial(n, d2).evalf() for d2 in d_l])
