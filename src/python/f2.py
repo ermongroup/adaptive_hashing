@@ -88,11 +88,10 @@ class Config:
         self.degn = args.var_degree
         self.total_max_time = args.max_time
         if args.cmsat_exe is not None:
-            if not os.path.isfile(args.cmsat_exe):
+            self.cmsat_exe = os.path.join('.', args.cmsat_exe)
+            if not os.path.isfile(self.cmsat_exe):
                 log.error('CMSat executable does not exist')
                 exit(104)
-            else:
-                self.cmsat_exe = args.cmsat_exe
         else:
             f2_dir = os.path.dirname(os.path.realpath(__file__))
             cms = os.path.join(f2_dir, 'cryptominisat5')
@@ -102,11 +101,10 @@ class Config:
             else:
                 self.cmsat_exe = cms
         if args.sharpsat_exe is not None:
-            if not os.path.isfile(args.sharpsat_exe):
+            self.sharpsat_exe = os.path.join('.', args.sharpsat_exe)
+            if not os.path.isfile(self.sharpsat_exe):
                 log.error('sharpsat executable does not exist')
                 exit(108)
-            else:
-                self.sharpsat_exe = args.sharpsat_exe
         else:
             f2_dir = os.path.dirname(os.path.realpath(__file__))
             shs = os.path.join(f2_dir, 'sharpSAT')
