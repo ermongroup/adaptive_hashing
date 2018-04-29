@@ -86,6 +86,7 @@ class Config:
                 log.error('lower_bound must be less than upper_bound')
                 exit(103)
         self.degn = args.var_degree
+        self.cmsat_major_version = args.cmsat_version
         self.total_max_time = args.max_time
         if args.cmsat_exe is not None:
             if not os.path.isfile(args.cmsat_exe):
@@ -272,8 +273,12 @@ def main():
                         help='Average variable degree of LDPC XORs',
                         default=12)
     parser.add_argument('--cmsat-exe', type=str,
-                        help='The location of a cryptominisat v5 executable',
+                        help='The location of a cryptominisat executable',
                         default=None)
+    parser.add_argument('--cmsat-version', type=int,
+                        help='The major version of cryptominisat executable. '
+                             '(Allowed versions 2 or 5, default 5)',
+                        default=5)
     parser.add_argument('--sharpsat-exe', type=str,
                         help='The location of a SharpSAT executable',
                         default=None)
@@ -398,7 +403,7 @@ def run(args):
 
 def prepare_lower_bound():
     few_solutions = 2**4
-    if len(conf.var_set) <= 10 :  # Take care of really "small" cases
+    if len(conf.var_set) <= 10:  # Take care of really "small" cases
         t, b, n, ctime = sat_count(conf.formula_filename,
                                    conf.total_max_time - 2, few_solutions)
         if t:
@@ -670,6 +675,9 @@ def parse_cryptominisat_output(output):
     if output is None:
         return 'ERROR', math.nan, math.nan  # Shouldn't reach anywhere,normally
     version = conf.cmsat_major_version
+    print('******&&&&&&')
+    print(output)
+    print('******^^^^^^^')
     ctime = math.nan
     nsol = 0
     res_type = "ERROR"
@@ -687,6 +695,26 @@ def parse_cryptominisat_output(output):
                 res_type = 'UNSAT'
             elif line.startswith('s INDET'):
                 res_type = 'INDET'
+    elif version == 2:
+        res_type = 'INDET'
+        for line in output.split('\n'):
+            line = line.strip()
+            if line.startswith('c Number of solutions found until now:'):
+                nsol = int(line.split('now:')[1].strip())
+            elif line.startswith('c CPU time'):
+                ctime = float(line.split(':')[1].strip().split('s')[0].strip())
+            elif line.startswith('c SAT'):
+                res_type = 'SAT'
+                nsol += 1
+            elif line.startswith('c UNSAT'):
+                res_type = 'UNSAT'
+            elif (line.startswith('cryptominisat:') or line ==
+                    'Memory manager cannot handle the load. Sorry. Exiting.'):
+                log.warning('*** cryptominisat failed!')
+                res_type = 'ERROR'
+        if nsol > 0:
+            res_type = 'SAT'  # Because a 'c UNSAT' is given by CMSAT if maxsol
+#                               is not reached.
     else:
         raise Exception('cmsat parsing for this version not yet implemented')
     return res_type, nsol, ctime
@@ -787,13 +815,21 @@ def sat_count(formula, time_limit, sol_limit):
     cmsat5_cmd = ('{cmsat_exe} --printsol 0  --verb 1'
                   ' --maxtime={timeout} --autodisablegauss 0'
                   ' --maxsol={maxsol} {augm_form}')
+    cmsat2_cmd = ('{cmsat_exe} --nosolprint  --verbosity=1'
+                  ' --maxtime={timeout} --gaussuntil=400'
+                  ' --maxsolutions={maxsol} {augm_form}')
     if conf.cmsat_major_version == 5:
         sh_cmd = cmsat5_cmd.format(timeout=time_limit, augm_form=formula,
+                                   cmsat_exe=conf.cmsat_exe, maxsol=sol_limit)
+    elif conf.cmsat_major_version == 2:
+        sh_cmd = cmsat2_cmd.format(timeout=time_limit, augm_form=formula,
                                    cmsat_exe=conf.cmsat_exe, maxsol=sol_limit)
     else:
         raise Exception('Unknown cmsat version')
     result, n_sol, ctime = execute_cmd(sh_cmd, time_limit + 5,
                                        parse_cryptominisat_output)
+    if result == 'ERROR':
+        print('sat_count: *** CMSAT ERROR ***')
     return result == 'INDET', n_sol >= sol_limit, n_sol, ctime
 
 
