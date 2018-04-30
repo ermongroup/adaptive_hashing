@@ -675,9 +675,6 @@ def parse_cryptominisat_output(output):
     if output is None:
         return 'ERROR', math.nan, math.nan  # Shouldn't reach anywhere,normally
     version = conf.cmsat_major_version
-    print('******&&&&&&')
-    print(output)
-    print('******^^^^^^^')
     ctime = math.nan
     nsol = 0
     res_type = "ERROR"
