@@ -1069,11 +1069,13 @@ def h(t):
 
 
 def zp(i, n):
-    a = sp.Symbol('a')
-    # noinspection PyTypeChecker
+    # Solve h(x)-(i-1)/n == 0 with starting point x_0=0.000000001 where
+    # h(x) the binary entropy function: h(x):=-x*log2(x)-(1-x)*log2(1-x)
     t = scipy.optimize.fsolve(
-        sp.Lambda(a, h(a).evalf() - (i - 1) / n), 0.0000001)[0] * n
-    return int(sp.ceiling(t))
+        lambda x: (-x) * math.log2(x) -(1-x) * math.log2(1-x) - (i - 1) / n,
+        0.000000001
+    )[0] * n
+    return int(math.ceil(t))
 
 
 def power_productl(cel1, ex1, cel2, ex2, order):
