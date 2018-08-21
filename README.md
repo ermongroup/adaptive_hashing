@@ -122,8 +122,6 @@ TODO
 F2 can be downloaded from the Github repository at
 https://github.com/ptheod/f2
 
-## License
-To be written.
 
 ## Contact
 * Panos Theodoropoulos (p + <7 first letters of last name>)@di.uoa.gr
