@@ -284,10 +284,10 @@ def main():
                         help='Mode of operation. Allowed values: lb, ub, appr',
                         choices=['lb', 'ub', 'appr'],
                         default='appr')
-    parser.add_argument('--lower-bound', type=float,
+    parser.add_argument('--lower-bound', type=int,
                         help='Binary logarithm of lower bound (modes: ub, '
                              'appr)', default=math.nan)
-    parser.add_argument('--upper-bound', type=float,
+    parser.add_argument('--upper-bound', type=int,
                         help='Binary logarithm of upper bound (only appr '
                              'mode)', default=math.nan)
     parser.add_argument('--error-prob', type=float,

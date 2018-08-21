@@ -24,9 +24,15 @@ not been tested.
 
 ### Cryptominisat
 An executable of [Cryptominisat](https://github.com/msoos/cryptominisat)
- (version 5) should be in the same directory
+ should be in the same directory
 as `f2.py` or otherwise it should be specified in command line via the
-'--cmsat-exe' option.
+'--cmsat-exe' option. If the major version number is not 5 it should be
+specified with the '--cmsat-version' option.
+
+The Cryptominisat should be compiled with Gaussian Elimination support
+and preferably with the large memory model. Thus the options
+`-DLARGEMEM=1 -DUSE_GAUSS=1` should be added to the `cmake` build
+command.
 
 ### SharpSAT
 An executable of [sharpSAT](https://github.com/marcthurley/sharpSAT)
@@ -64,8 +70,11 @@ The acceptable options are:
       --var-degree VAR_DEGREE
                             Average variable degree of LDPC XORs [12]
       --cmsat-exe CMSAT_EXE
-                            The path to a cryptominisat v5 executable
+                            The path to a cryptominisat executable
                             [Same dir as f2.py]
+      --cmsat-version VERSION
+                            The major version number of the cryptominisat
+                            exectutable. (Accepted values 2 and 5) [5]
       --sharpsat-exe SHARPSAT_EXE
                             The path to a SharpSAT executable
                             [Same dir as f2.py]
