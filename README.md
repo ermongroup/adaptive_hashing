@@ -1,7 +1,12 @@
 # F2
 
 F2 is a fast and flexible probabilistic approximate model counter for
-CNF formulas. It implements the algorithms in our SAT-18 paper.
+CNF formulas. It implements the algorithms in the following paper published in
+the SAT2018 conference:
+
+> [Achlioptas D., Hammoudeh Z., Theodoropoulos P. (2018) Fast and Flexible Probabilistic Model Counting.](https://doi.org/10.1007/978-3-319-94144-8_10)
+>
+> In: Beyersdorff O., Wintersteiger C. (eds) Theory and Applications of Satisfiability Testing – SAT 2018. SAT 2018. Lecture Notes in Computer Science, vol 10929. Springer, Cham
 
 The code is currently considered beta quality but it is already pretty usable.
 
@@ -52,14 +57,16 @@ Can be specified in the CNF files using lines starting with `c ind`.
 
 
 ### Command line
-    usage: python3 f2.py [options] formula_file.cnf
+    usage: python3 f2.py [options] input_filename
 
 The acceptable options are:
 
-    positional arguments:
-      input_filename        The formula in extended DIMACS form
+mandatory argument:
+      
+      input_filename        The formula in extended DIMACS form (CNF file)
 
-    optional arguments: (default values in [square brackets])
+optional arguments: (default values in [square brackets])
+
       -h, --help            show a help message and exit
       --working-dir WORKING_DIR
                             Where to create auxiliary files [current directory]
