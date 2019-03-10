@@ -38,7 +38,7 @@ import numpy as np
 # $ python fireworks_compare_bounds.py
 
 
-NJOBS_QUEUE = 400
+NJOBS_QUEUE = 200
 
 m_ranges = {#'c432.isc': range(25, 42), #log_2(Z) = 36.1
             'c432.isc': range(25, 46), #log_2(Z) = 36.1
@@ -170,7 +170,7 @@ class RunSpecificExperimentBatch(FireTaskBase):
             # RESULTS_DIRECTORY = '/atlas/u/jkuck/F2/fireworks/cluster_results_fixSharpSat'
             # RESULTS_DIRECTORY = '/atlas/u/jkuck/F2/fireworks/cluster_results_orderVarsByMarginals_chunksRandom'
             # RESULTS_DIRECTORY = '/atlas/u/jkuck/F2/fireworks/cluster_results_orderVarsByDOUBLEMarginals_chunksAssignmentProblem'
-            RESULTS_DIRECTORY = '/atlas/u/jkuck/F2/fireworks/cluster_results_orderVarsByMarginals_randomInChunks_Tsol10_parallelRuntime'
+            RESULTS_DIRECTORY = '/atlas/u/jkuck/F2/fireworks/cluster_results_orderVarsByMarginals_randomInChunks_postUAI'
         if not os.path.exists(RESULTS_DIRECTORY):
             os.makedirs(RESULTS_DIRECTORY)      
 
@@ -195,7 +195,7 @@ class RunSpecificExperimentBatch(FireTaskBase):
         #                     'sum_of_T_solutions':1,
         #                     }            
         #     lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
-        #         random_seed=random_seed, var_degree=1, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs, time_limit=500)
+        #         random_seed=random_seed, var_degree=1, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs, time_limit=5000)
 
         #     logger = open(filename, 'a')
         #     logger.write("biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_1 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
@@ -210,7 +210,7 @@ class RunSpecificExperimentBatch(FireTaskBase):
                             'sum_of_T_solutions':1,
                             }               
             lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
-                random_seed=random_seed, var_degree=1, method='original', extra_configs=extra_configs, time_limit=500)
+                random_seed=random_seed, var_degree=1, method='original', extra_configs=extra_configs, time_limit=5000)
 
             logger = open(filename, 'a')
             logger.write("biregular_variable_degree_1_Tsol_1 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
@@ -224,7 +224,7 @@ class RunSpecificExperimentBatch(FireTaskBase):
                             'sum_of_T_solutions':10,
                             }            
             lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
-                random_seed=random_seed, var_degree=1, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs, time_limit=500)
+                random_seed=random_seed, var_degree=1, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs, time_limit=5000)
 
             logger = open(filename, 'a')
             logger.write("biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_10 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
@@ -232,10 +232,39 @@ class RunSpecificExperimentBatch(FireTaskBase):
             if sat_solver_time > 500:
                 break
 
+
+        ####### RUN EXPERIMENT: F2 with 1 ones per column, order variables by marginals, T=3 solutions #######
+        for random_seed in range(fw_spec['repeats']):
+            extra_configs = {
+                            'sum_of_T_solutions':3,
+                            }            
+            lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
+                random_seed=random_seed, var_degree=1, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs, time_limit=5000)
+
+            logger = open(filename, 'a')
+            logger.write("biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_3 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
+            logger.close()
+            if sat_solver_time > 500:
+                break
+
+        ####### RUN EXPERIMENT: F2 with 1 ones per column, order variables by marginals, T=1 solutions #######
+        for random_seed in range(fw_spec['repeats']):
+            extra_configs = {
+                            'sum_of_T_solutions':1,
+                            }            
+            lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
+                random_seed=random_seed, var_degree=1, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs, time_limit=5000)
+
+            logger = open(filename, 'a')
+            logger.write("biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_1 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
+            logger.close()
+            if sat_solver_time > 500:
+                break                
+
         # ####### RUN EXPERIMENT: F2 with 1 ones per column, order variables by 'double' marginals #######
         # for random_seed in range(fw_spec['repeats']):
         #     lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
-        #         random_seed=random_seed, var_degree=1, method='bi_regular_order_vars_by_double_marginals', extra_configs=extra_configs, time_limit=500)
+        #         random_seed=random_seed, var_degree=1, method='bi_regular_order_vars_by_double_marginals', extra_configs=extra_configs, time_limit=5000)
 
         #     logger = open(filename, 'a')
         #     logger.write("biregular_order_vars_by_doubleMarginals_assignmentProblem_variable_degree_1 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
@@ -250,7 +279,7 @@ class RunSpecificExperimentBatch(FireTaskBase):
                             'sum_of_T_solutions':10,
                             }               
             lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
-                random_seed=random_seed, var_degree=1, method='original', extra_configs=extra_configs, time_limit=500)
+                random_seed=random_seed, var_degree=1, method='original', extra_configs=extra_configs, time_limit=5000)
 
             logger = open(filename, 'a')
             logger.write("biregular_variable_degree_1_Tsol_10 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
@@ -258,13 +287,99 @@ class RunSpecificExperimentBatch(FireTaskBase):
             if sat_solver_time > 500:
                 break
 
+
+#try longer constraints, 2 ones per column
+        ####### RUN EXPERIMENT: F2 with 2 ones per column, T=1 solutions  #######
+        for random_seed in range(fw_spec['repeats']):
+            extra_configs = {
+                            'sum_of_T_solutions':1,
+                            }               
+            lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
+                random_seed=random_seed, var_degree=2, method='original', extra_configs=extra_configs, time_limit=5000)
+
+            logger = open(filename, 'a')
+            logger.write("biregular_variable_degree_2_Tsol_1 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
+            logger.close()
+            if sat_solver_time > 500:
+                break
+
+        ####### RUN EXPERIMENT: F2 with 2 ones per column, T=10 solutions  #######
+        for random_seed in range(fw_spec['repeats']):
+            extra_configs = {
+                            'sum_of_T_solutions':10,
+                            }               
+            lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
+                random_seed=random_seed, var_degree=2, method='original', extra_configs=extra_configs, time_limit=5000)
+
+            logger = open(filename, 'a')
+            logger.write("biregular_variable_degree_2_Tsol_10 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
+            logger.close()
+            if sat_solver_time > 500:
+                break
+
+        ####### RUN EXPERIMENT: F2 with 2 ones per column, order variables by marginals, T=10 solutions #######
+        for random_seed in range(fw_spec['repeats']):
+            extra_configs = {
+                            'sum_of_T_solutions':10,
+                            }            
+            lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
+                random_seed=random_seed, var_degree=2, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs, time_limit=5000)
+
+            logger = open(filename, 'a')
+            logger.write("biregular_order_vars_by_marginals_assignmentProblem_variable_degree_2_Tsol_10 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
+            logger.close()
+            if sat_solver_time > 500:
+                break
+
+#try longer constraints, 3 ones per column
+        ####### RUN EXPERIMENT: F2 with 3 ones per column, T=1 solutions  #######
+        for random_seed in range(fw_spec['repeats']):
+            extra_configs = {
+                            'sum_of_T_solutions':1,
+                            }               
+            lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
+                random_seed=random_seed, var_degree=3, method='original', extra_configs=extra_configs, time_limit=5000)
+
+            logger = open(filename, 'a')
+            logger.write("biregular_variable_degree_3_Tsol_1 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
+            logger.close()
+            if sat_solver_time > 500:
+                break
+
+        ####### RUN EXPERIMENT: F2 with 3 ones per column, T=10 solutions  #######
+        for random_seed in range(fw_spec['repeats']):
+            extra_configs = {
+                            'sum_of_T_solutions':10,
+                            }               
+            lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
+                random_seed=random_seed, var_degree=3, method='original', extra_configs=extra_configs, time_limit=5000)
+
+            logger = open(filename, 'a')
+            logger.write("biregular_variable_degree_3_Tsol_10 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
+            logger.close()
+            if sat_solver_time > 500:
+                break
+
+        ####### RUN EXPERIMENT: F2 with 3 ones per column, order variables by marginals, T=10 solutions #######
+        for random_seed in range(fw_spec['repeats']):
+            extra_configs = {
+                            'sum_of_T_solutions':10,
+                            }            
+            lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
+                random_seed=random_seed, var_degree=3, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs, time_limit=5000)
+
+            logger = open(filename, 'a')
+            logger.write("biregular_order_vars_by_marginals_assignmentProblem_variable_degree_3_Tsol_10 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
+            logger.close()
+            if sat_solver_time > 500:
+                break                
         # ####### RUN EXPERIMENT: F2 with 1.5 ones per column, T=1 solutions #######
         # for random_seed in range(fw_spec['repeats']):
         #     extra_configs = {
         #                     'sum_of_T_solutions':1,
         #                     }               
         #     lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
-        #         random_seed=random_seed, var_degree=1.5, method='original', extra_configs=extra_configs, time_limit=500)
+        #         random_seed=random_seed, var_degree=1.5, method='original', extra_configs=extra_configs, time_limit=5000)
 
         #     logger = open(filename, 'a')
         #     logger.write("biregular_variable_degree_1.5_Tsol_1 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
@@ -277,7 +392,7 @@ class RunSpecificExperimentBatch(FireTaskBase):
         # ####### RUN EXPERIMENT: F2 with 1.5 ones per column, order variables by marginals #######
         # for random_seed in range(fw_spec['repeats']):
         #     lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
-        #         random_seed=random_seed, var_degree=1.5, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=None, time_limit=500)
+        #         random_seed=random_seed, var_degree=1.5, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=None, time_limit=5000)
 
         #     logger = open(filename, 'a')
         #     logger.write("biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1.5 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s parallel_runtime: %s\n" % (time_out, lb, sat_solver_time, random_seed, parallel_runtime))
@@ -290,7 +405,7 @@ class RunSpecificExperimentBatch(FireTaskBase):
         # ####### RUN EXPERIMENT: F2 with 3 ones per column #######
         # for random_seed in range(fw_spec['repeats']):
         #     lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
-        #         random_seed=random_seed, var_degree=3, method='original', extra_configs=None, time_limit=500)
+        #         random_seed=random_seed, var_degree=3, method='original', extra_configs=None, time_limit=5000)
 
         #     logger = open(filename, 'a')
         #     logger.write("biregular_variable_degree_3 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s\n" % (time_out, lb, sat_solver_time, random_seed))
@@ -306,7 +421,7 @@ class RunSpecificExperimentBatch(FireTaskBase):
         #                      'f': .5,
         #                     }            
         #     lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
-        #         random_seed=random_seed, var_degree=3, method='iid', extra_configs=extra_configs, time_limit=500)
+        #         random_seed=random_seed, var_degree=3, method='iid', extra_configs=extra_configs, time_limit=5000)
 
         #     logger = open(filename, 'a')
         #     logger.write("long_iid_.5 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s\n" % (time_out, lb, sat_solver_time, random_seed))
@@ -325,7 +440,7 @@ class RunSpecificExperimentBatch(FireTaskBase):
         #                      'biregular_marginal_problem_constraint': 'iid',
         #                     }           
         #     lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
-        #         random_seed=random_seed, var_degree=1.5, method='bi_regular_marginals_joint_constraint', extra_configs=extra_configs, time_limit=500)
+        #         random_seed=random_seed, var_degree=1.5, method='bi_regular_marginals_joint_constraint', extra_configs=extra_configs, time_limit=5000)
 
         #     logger = open(filename, 'a')
         #     logger.write("bi_regular_marginals_joint_constraint_variable_degree_1.5 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s\n" % (time_out, lb, sat_solver_time, random_seed))
@@ -344,7 +459,7 @@ class RunSpecificExperimentBatch(FireTaskBase):
         #                      'biregular_marginal_problem_constraint': 'iid',
         #                     }           
         #     lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
-        #         random_seed=random_seed, var_degree=1.5, method='bi_regular_marginals_per_constraint', extra_configs=extra_configs, time_limit=500)
+        #         random_seed=random_seed, var_degree=1.5, method='bi_regular_marginals_per_constraint', extra_configs=extra_configs, time_limit=5000)
 
         #     logger = open(filename, 'a')
         #     logger.write("bi_regular_marginals_per_constraint_iid_variable_degree_1.5 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s\n" % (time_out, lb, sat_solver_time, random_seed))
@@ -363,7 +478,7 @@ class RunSpecificExperimentBatch(FireTaskBase):
         #                      'biregular_marginal_problem_constraint': 'keep_biregular',
         #                     }           
         #     lb, sat_solver_time, time_out, parallel_runtime = find_lower_bound_call_from_python(problem_name=fw_spec['problem_name'],\
-        #         random_seed=random_seed, var_degree=1.5, method='bi_regular_marginals_per_constraint', extra_configs=extra_configs, time_limit=500)
+        #         random_seed=random_seed, var_degree=1.5, method='bi_regular_marginals_per_constraint', extra_configs=extra_configs, time_limit=5000)
 
         #     logger = open(filename, 'a')
         #     logger.write("bi_regular_marginals_per_constraint_keep_biregular_variable_degree_1.5 time_out: %s lower_bound: %s sat_solver_time: %s random_seed: %s\n" % (time_out, lb, sat_solver_time, random_seed))
@@ -373,7 +488,7 @@ class RunSpecificExperimentBatch(FireTaskBase):
 
 
         ####### RUN EXPERIMENT IN ONE FILE: SHARPSAT #######           
-        time_out, solution_count, sharp_sat_time = sharp_sat_call_from_python(problem_name=fw_spec['problem_name'], time_limit=500)
+        time_out, solution_count, sharp_sat_time = sharp_sat_call_from_python(problem_name=fw_spec['problem_name'], time_limit=5000)
 
         logger = open(filename, 'a')
         logger.write("sharpSAT time_out: %s solution_count: %s sharp_sat_time: %s\n" % (time_out, solution_count, sharp_sat_time))
