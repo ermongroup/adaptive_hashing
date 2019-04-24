@@ -74,6 +74,7 @@ class Config:
         self.mode = args.mode
         if not os.path.isfile(args.input_filename):
             log.error('File {} does not exist.'.format(args.input_filename))
+            print('File {} does not exist.'.format(args.input_filename))            
             exit(101)
         else:
             self.formula_filename = args.input_filename
@@ -597,7 +598,9 @@ def find_lower_bound_call_from_python(problem_name, random_seed, var_degree, met
     return lb, sat_solver_time, time_out, SAT_SOLVER_TIME_BETTER_PRECISION_PARALLEL
 
 
-def sharp_sat_call_from_python(problem_name, time_limit):
+# def sharp_sat_call_from_python(problem_name, time_limit, problem_directory='/atlas/u/jkuck/low_density_parity_checks/SAT_problems_cnf/'):
+def sharp_sat_call_from_python(problem_name, time_limit, problem_directory='/atlas/u/jkuck/approxmc/counting2/'):
+    print("sys.version:", sys.version)
     global SATISFYING_SOLUTIONS
     SATISFYING_SOLUTIONS = []
     global SAT_SOLVER_TIME
@@ -609,8 +612,7 @@ def sharp_sat_call_from_python(problem_name, time_limit):
 
     args = Bunch()
 
-    args.input_filename = '/atlas/u/jkuck/approxmc/counting2/%s' % problem_name
-    # args.input_filename = '/atlas/u/jkuck/low_density_parity_checks/SAT_problems_cnf/%s' % problem_name
+    args.input_filename = '%s%s' % (problem_directory, problem_name)
 
     # args.working_dir = '/atlas/u/jkuck/F2/fireworks/augform'
     args.working_dir = os.getcwd()        
@@ -653,8 +655,8 @@ def sharp_sat_call_from_python(problem_name, time_limit):
     #            time_out: [boolean] has the time_limit been reached without finishing?
     #            solution_count: number of solutions (if time_out is False)
     #            ct: The processor time consumed in the subprocess
-    input_filename = '/atlas/u/jkuck/approxmc/counting2/%s' % problem_name 
-    # input_filename = '/atlas/u/jkuck/low_density_parity_checks/SAT_problems_cnf/%s' % problem_name
+
+    input_filename = '%s%s' % (problem_directory, problem_name)
 
     t0 = resource.getrusage(resource.RUSAGE_CHILDREN).ru_utime
     t0_bad = time.time()
@@ -664,6 +666,7 @@ def sharp_sat_call_from_python(problem_name, time_limit):
     print("our timing of sharpSAT:", t1-t0)
     print("our (bad?) timing of sharpSAT:", t1_bad-t0_bad)
     sharp_sat_time = t1-t0
+    print("about to return from sharp_sat_call_from_python")
     return time_out, solution_count, sharp_sat_time
 
 
@@ -2757,7 +2760,7 @@ def setup_duplicated_augmented_formula(constraints):
                 # num_clauses = original_num_clauses*duplication_factor + n_constr
                 ofile.write('p cnf {} {}\n'.format(num_variables_with_duplication, num_clauses))
                 continue
-            if iline.split(' ')[:1] == ['c', 'ind']:
+            if iline.split(' ')[:2] == ['c', 'ind']:
                 assert(num_variables is not None)                
                 for dup_idx in range(duplication_factor):
                     converted_independent_set_clause = convert_independentSet_with_duplicates(clause=iline, n_vars=num_variables, dup_idx=dup_idx)
@@ -2963,7 +2966,7 @@ def convert_independentSet_with_duplicates(clause, n_vars, dup_idx):
     - output_clause: (str) a string representation of the clause with variable names increased appropriately
     '''
     original_clause_as_list = clause.split(' ')
-    assert(original_clause_as_list[0:1] == ['c', 'ind'])
+    assert(original_clause_as_list[0:2] == ['c', 'ind'])
     assert(original_clause_as_list[-1] == '0\n'), original_clause_as_list
     # print(original_clause_as_list[1])
 
@@ -3762,7 +3765,7 @@ if __name__ == '__main__':
     # lb, sat_solver_time, timeout = find_lower_bound_call_from_python(problem_name='sat-grid-pbl-0015.cnf',\
     # lb, sat_solver_time, timeout = find_lower_bound_call_from_python(problem_name='tire-1.cnf',\
     # lb, sat_solver_time, timeout = find_lower_bound_call_from_python(problem_name='hypercube.cnf',\
-        random_seed=0, var_degree=1.3, method='original', extra_configs=extra_configs)
+        random_seed=0, var_degree=1, method='original', extra_configs=extra_configs)
         # random_seed=0, var_degree=1.5, method='original', extra_configs=extra_configs)
     print("lower bound:", lb, "sat_solver_time:", sat_solver_time, "timeout:", timeout, "parallel_runtime:", parallel_runtime)
     exit(0)

@@ -117,9 +117,11 @@ def get_results(results_folder, random_seed):
             if len(results_for_each_method) == 1 and results_for_each_method[0][0] == 'sharpSAT' and sat_solver_time < 2:
                     number_of_problems_sharp_sat_solved_fast += 1
             # only get results where the particular random seed finished                  
+            # elif len(results_for_each_method) != 12:
+            elif len(results_for_each_method) < 8:
             # elif len(results_for_each_method) != 8:
             # elif len(results_for_each_method) != 2:
-            elif not method1_found or not method2_found or not method3_found or method4_found:
+            # elif not method1_found or not method2_found or not method3_found or method4_found:
             # only get results where both random seeds finished
             # elif len(results_for_each_method) != 2 or len(results_for_each_method_trial0) != 2 or len(results_for_each_method_trial1) != 2:
                 finished_methods = []
@@ -128,6 +130,7 @@ def get_results(results_folder, random_seed):
                 # print(problem_name, "unfinished, finished methods are:", finished_methods)
                 number_of_unfinished_problems += 1
                 # print(len(results_for_each_method), len(results_for_each_method_trial0), len(results_for_each_method_trial1), problem_name)
+                print("had", len(results_for_each_method), 'methods finish', problem_name)
             else:
                 number_of_finished_problems += 1
                 fast_problem_for_1point5 = False
@@ -202,6 +205,9 @@ def get_results(results_folder, random_seed):
 
 
 def plot_results_for_2_methods(runtimes_for_each_method, lower_bounds_for_each_method, method1, method2, plot_folder):
+    method1_period_removed = method1.replace('.','point')
+    method2_period_removed = method2.replace('.','point')
+
     if method1 == 'sharpSAT':
         method_label1 = 'Exact Model Count'
     elif method1 == 'biregular_variable_degree_1_Tsol_1':
@@ -210,6 +216,8 @@ def plot_results_for_2_methods(runtimes_for_each_method, lower_bounds_for_each_m
         method_label1 = 'Regular Lower Bound, K = 10'
     elif method1 == 'biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_10':
         method_label1 = 'Adaptive Regular Lower Bound, K = 10'
+    else:
+        method_label1 = method1_period_removed
 
     if method2 == 'sharpSAT':
         method_label2 = 'Exact Model Count'
@@ -219,13 +227,12 @@ def plot_results_for_2_methods(runtimes_for_each_method, lower_bounds_for_each_m
         method_label2 = 'Regular Lower Bound, K = 10'
     elif method2 == 'biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_10':
         method_label2 = 'Adaptive Regular Lower Bound, K = 10'
-
+    else:
+        method_label2 = method2_period_removed
 
     if not os.path.exists(plot_folder):
         os.makedirs(plot_folder)
 
-    method1_period_removed = method1.replace('.','point')
-    method2_period_removed = method2.replace('.','point')
     print("plot_results_for_2_methods called for", method1, method2)
     ########## RUNTIME PLOT ##########
     print("len(runtimes_for_each_method[method1]):", len(runtimes_for_each_method[method1]))
@@ -483,10 +490,10 @@ def plot_computation_tradeoff(plot_folder):
 
 
 if __name__=="__main__":
-    runtimes_for_each_method_0, lower_bounds_for_each_method_0 = get_results('/atlas/u/jkuck/F2/fireworks/cluster_results_orderVarsByMarginals_randomInChunks_Tsol10_parallelRuntime', random_seed=0)
+    runtimes_for_each_method_0, lower_bounds_for_each_method_0 = get_results('/atlas/u/jkuck/F2/fireworks/cluster_results_orderVarsByMarginals_randomInChunks_postUAI1', random_seed=0)
     # runtimes_for_each_method_1, lower_bounds_for_each_method_1 = get_results('/atlas/u/jkuck/F2/fireworks/cluster_results_orderVarsByMarginals_randomInChunks_Tsol10_parallelRuntime', random_seed=1)
     
-    plot_folder='./plots_orderVarsByMarginals_randomInChunks_Tsol10_parallelRuntime_paper/'
+    plot_folder='./plots_orderVarsByMarginals_randomInChunks_Tsol10_parallelRuntime_postUAI/'
     # plot_computation_tradeoff(plot_folder)
     # exit(0)
     # plot_method_1_better_than_2(lower_bounds_for_each_method_0, lower_bounds_for_each_method_1,\
@@ -504,7 +511,27 @@ if __name__=="__main__":
     # plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='biregular_variable_degree_1_Tsol_1', method2='biregular_variable_degree_1_Tsol_10', plot_folder=plot_folder)
     # plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='biregular_variable_degree_1_Tsol_10', method2='biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_10', plot_folder=plot_folder)
     # plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='biregular_variable_degree_1_Tsol_1', method2='biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_10', plot_folder=plot_folder)
-    
+  
+
+    # post paper extra results + longer 5000s timeout
+    #origal vs. variance reduced with 10 repetitions
+    plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='biregular_variable_degree_1_Tsol_1', method2='biregular_variable_degree_1_Tsol_10', plot_folder=plot_folder)
+    #origal vs. adaptive with T=1
+    plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='biregular_variable_degree_1_Tsol_1', method2='biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_1', plot_folder=plot_folder)
+    #adaptive with T=1 vs. adaptive with T=3
+    plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_1', method2='biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_3', plot_folder=plot_folder)
+    #adaptive with T=3 vs. adaptive with T=10
+    plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_3', method2='biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_10', plot_folder=plot_folder)
+    #variance reduced with 10 repetitions vs. adaptive with T=10
+    plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='biregular_variable_degree_1_Tsol_10', method2='biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_10', plot_folder=plot_folder)
+    plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='biregular_variable_degree_1_Tsol_10', method2='biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_10', plot_folder=plot_folder)
+    plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='biregular_variable_degree_1_Tsol_1', method2='biregular_order_vars_by_marginals_assignmentProblem_variable_degree_1_Tsol_10', plot_folder=plot_folder)
+
+    #origal vs. variance reduced with 10 repetitions, var_degree = 2
+    plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='biregular_variable_degree_2_Tsol_1', method2='biregular_variable_degree_2_Tsol_10', plot_folder=plot_folder)
+    #variance reduced with 10 repetitions vs. adaptive with T=10
+    plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='biregular_variable_degree_2_Tsol_10', method2='biregular_order_vars_by_marginals_assignmentProblem_variable_degree_2_Tsol_10', plot_folder=plot_folder)
+
 
     # plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='sharpSAT', method2='biregular_variable_degree_1_Tsol_1', plot_folder=plot_folder)
     # plot_results_for_2_methods(runtimes_for_each_method_0, lower_bounds_for_each_method_0, method1='sharpSAT', method2='biregular_variable_degree_1_Tsol_10', plot_folder=plot_folder)

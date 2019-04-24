@@ -170,7 +170,7 @@ class RunSpecificExperimentBatch(FireTaskBase):
             # RESULTS_DIRECTORY = '/atlas/u/jkuck/F2/fireworks/cluster_results_fixSharpSat'
             # RESULTS_DIRECTORY = '/atlas/u/jkuck/F2/fireworks/cluster_results_orderVarsByMarginals_chunksRandom'
             # RESULTS_DIRECTORY = '/atlas/u/jkuck/F2/fireworks/cluster_results_orderVarsByDOUBLEMarginals_chunksAssignmentProblem'
-            RESULTS_DIRECTORY = '/atlas/u/jkuck/F2/fireworks/cluster_results_orderVarsByMarginals_randomInChunks_postUAI'
+            RESULTS_DIRECTORY = '/atlas/u/jkuck/F2/fireworks/cluster_results_orderVarsByMarginals_randomInChunks_postUAI1'
         if not os.path.exists(RESULTS_DIRECTORY):
             os.makedirs(RESULTS_DIRECTORY)      
 
