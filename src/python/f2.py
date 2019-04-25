@@ -32,6 +32,22 @@ from itertools import combinations
 from scipy.optimize import linear_sum_assignment
 VERBOSE = False
 
+def do_cprofile(func):
+    '''
+    https://zapier.com/engineering/profiling-python-boss/
+    '''
+    def profiled_func(*args, **kwargs):
+        profile = cProfile.Profile()
+        try:
+            profile.enable()
+            result = func(*args, **kwargs)
+            profile.disable()
+            return result
+        finally:
+            profile.print_stats()
+    return profiled_func
+
+
 class Config:
     def __init__(self):
         self.formula_filename = None
@@ -74,7 +90,6 @@ class Config:
         self.mode = args.mode
         if not os.path.isfile(args.input_filename):
             log.error('File {} does not exist.'.format(args.input_filename))
-            print('File {} does not exist.'.format(args.input_filename))            
             exit(101)
         else:
             self.formula_filename = args.input_filename
@@ -551,7 +566,7 @@ def find_lower_bound_call_from_python(problem_name, random_seed, var_degree, met
 
     # args.working_dir = '/atlas/u/jkuck/F2/fireworks/augform'
     args.working_dir = os.getcwd()    
-    args.keep_cnf = True
+    args.keep_cnf = False
     args.random_seed = random_seed
     args.var_degree = var_degree
     args.cmsat_exe = '/atlas/u/jkuck/software/cryptominisat_BIRD/cryptominisat-5.6.6/build/cryptominisat5'
@@ -598,9 +613,7 @@ def find_lower_bound_call_from_python(problem_name, random_seed, var_degree, met
     return lb, sat_solver_time, time_out, SAT_SOLVER_TIME_BETTER_PRECISION_PARALLEL
 
 
-# def sharp_sat_call_from_python(problem_name, time_limit, problem_directory='/atlas/u/jkuck/low_density_parity_checks/SAT_problems_cnf/'):
-def sharp_sat_call_from_python(problem_name, time_limit, problem_directory='/atlas/u/jkuck/approxmc/counting2/'):
-    print("sys.version:", sys.version)
+def sharp_sat_call_from_python(problem_name, time_limit):
     global SATISFYING_SOLUTIONS
     SATISFYING_SOLUTIONS = []
     global SAT_SOLVER_TIME
@@ -612,11 +625,12 @@ def sharp_sat_call_from_python(problem_name, time_limit, problem_directory='/atl
 
     args = Bunch()
 
-    args.input_filename = '%s%s' % (problem_directory, problem_name)
+    args.input_filename = '/atlas/u/jkuck/approxmc/counting2/%s' % problem_name
+    # args.input_filename = '/atlas/u/jkuck/low_density_parity_checks/SAT_problems_cnf/%s' % problem_name
 
     # args.working_dir = '/atlas/u/jkuck/F2/fireworks/augform'
     args.working_dir = os.getcwd()        
-    args.keep_cnf = True
+    args.keep_cnf = False
     args.random_seed = False
     args.var_degree = None
     args.cmsat_exe = '/atlas/u/jkuck/software/cryptominisat_BIRD/cryptominisat-5.6.6/build/cryptominisat5'
@@ -655,8 +669,8 @@ def sharp_sat_call_from_python(problem_name, time_limit, problem_directory='/atl
     #            time_out: [boolean] has the time_limit been reached without finishing?
     #            solution_count: number of solutions (if time_out is False)
     #            ct: The processor time consumed in the subprocess
-
-    input_filename = '%s%s' % (problem_directory, problem_name)
+    input_filename = '/atlas/u/jkuck/approxmc/counting2/%s' % problem_name 
+    # input_filename = '/atlas/u/jkuck/low_density_parity_checks/SAT_problems_cnf/%s' % problem_name
 
     t0 = resource.getrusage(resource.RUSAGE_CHILDREN).ru_utime
     t0_bad = time.time()
@@ -666,7 +680,6 @@ def sharp_sat_call_from_python(problem_name, time_limit, problem_directory='/atl
     print("our timing of sharpSAT:", t1-t0)
     print("our (bad?) timing of sharpSAT:", t1_bad-t0_bad)
     sharp_sat_time = t1-t0
-    print("about to return from sharp_sat_call_from_python")
     return time_out, solution_count, sharp_sat_time
 
 
@@ -1356,6 +1369,7 @@ def generateLDPC_bipartiteGraph_parameterizeF_pickEvenSampleSplit(n_constr, f, r
     print("max_product_of_marginals:", max_product_of_marginals, end=' ')
     return clauses_with_max_product_of_marginals, max_product_of_marginals, np.log(i_effective_for_max_product_of_marginals)/np.log(2)
 
+# @do_cprofile
 def create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m, total_ones):
     '''
     Inputs:
@@ -1366,6 +1380,7 @@ def create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m, tota
     1. find approximate marginals for each variable
     2. add the varables from best marginals to worst (closest to .5 being the best), looping around until the correct density is reached
     '''
+    t0 = time.time()
     print("hi", "n:", n, "m:", m, "total_ones:", total_ones)
     global SATISFYING_SOLUTIONS
     global SATISFYING_SOLUTIONS_AS_LIST
@@ -1434,7 +1449,10 @@ def create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m, tota
         assert(zero_count == 1)
         variable_order = ub_variable_order
 
+    t1 = time.time()
+
     constraints = np.zeros((m,n))
+    constraints_as_list = [[] for i in range(m)]
     remaining_ones = total_ones # the number of ones left to allocate
     variable_index = 0 # allocate variables variable_order[variable_index:variable_index+ones_to_allocate]
     #at each iteration allocate m ones, one to each constraint.
@@ -1472,13 +1490,22 @@ def create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m, tota
                 if constraints[constraint_idx, variables[variable_idx]] == 1:
                     valid_shuffling = False
                     tries_to_get_valid_assignment += 1
+                    assert(variables[variable_idx] in constraints_as_list[constraint_idx])
                     break
+                else:
+                    assert(variables[variable_idx] not in constraints_as_list[constraint_idx])
+
         if tries_to_get_valid_assignment > 1:
             print("we need", tries_to_get_valid_assignment, "tries to get a valid assignment")
 
         for (variable_idx, constraint_idx) in enumerate(permuted_constraint_indices[:ones_to_allocate]):
             assert(constraints[constraint_idx, variables[variable_idx]] == 0), (association_list, constraints[constraint_idx, variable_idx], constraints, constraint_idx, variable_idx, cost_matrix)
             constraints[constraint_idx, variables[variable_idx]] = 1
+
+            assert(variables[variable_idx] not in constraints_as_list[constraint_idx])
+            constraints_as_list[constraint_idx].append(variables[variable_idx])
+
+    t2 = time.time()
 
     # return constraints
     clauses = []
@@ -1496,6 +1523,23 @@ def create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m, tota
             product_of_marginals *= cur_symmetric_marginal
 
     list_of_marginals.sort()
+
+    t3 = time.time()
+
+    assert(len(clauses) == len(constraints_as_list))
+    for clause_idx in range(len(clauses)):
+        assert(set(clauses[clause_idx]) == set(constraints_as_list[clause_idx]))
+    print()
+    print()
+    print()
+    print()
+    print('!'*80)
+    print("t3-t0", t3-t0)
+    print("t1-t0", t1-t0)
+    print("t2-t1", t2-t1)
+    print("t3-t2", t3-t2)
+
+
     return clauses, product_of_marginals, list_of_marginals
 
 # def lapjv():
@@ -2760,7 +2804,7 @@ def setup_duplicated_augmented_formula(constraints):
                 # num_clauses = original_num_clauses*duplication_factor + n_constr
                 ofile.write('p cnf {} {}\n'.format(num_variables_with_duplication, num_clauses))
                 continue
-            if iline.split(' ')[:2] == ['c', 'ind']:
+            if iline.split(' ')[:1] == ['c', 'ind']:
                 assert(num_variables is not None)                
                 for dup_idx in range(duplication_factor):
                     converted_independent_set_clause = convert_independentSet_with_duplicates(clause=iline, n_vars=num_variables, dup_idx=dup_idx)
@@ -2966,7 +3010,7 @@ def convert_independentSet_with_duplicates(clause, n_vars, dup_idx):
     - output_clause: (str) a string representation of the clause with variable names increased appropriately
     '''
     original_clause_as_list = clause.split(' ')
-    assert(original_clause_as_list[0:2] == ['c', 'ind'])
+    assert(original_clause_as_list[0:1] == ['c', 'ind'])
     assert(original_clause_as_list[-1] == '0\n'), original_clause_as_list
     # print(original_clause_as_list[1])
 
@@ -3734,7 +3778,7 @@ if __name__ == '__main__':
                      # - True: sample b_i according to the constraint's marginal
                      # - False: sample b_i with probability .5
                      'adaptive_b': True,
-                     'sum_of_T_solutions':10,
+                     'sum_of_T_solutions':1,
                     }
 
 
@@ -3750,9 +3794,11 @@ if __name__ == '__main__':
 #s13207a_15_7 is large and original 1 is better than 1.5, runtime 1.5: 3.9239999999999995 bound 1.5: 536.0 runtime 1: 1.8480000000000008 bound 1: 695.0 
 #min-12 is large and original 1 is better than 1.5, runtime 1.5: 1.6480000000000006 bound 1.5: 317.0 runtime 1: 1.0079999999999996 bound 1: 355.0
     
+
+    # before cProfile was just using this!
     lb, sat_solver_time, timeout, parallel_runtime = find_lower_bound_call_from_python(problem_name='90-34-3-q.cnf.gz.no_w.cnf',\
     # lb, sat_solver_time, timeout, parallel_runtime = find_lower_bound_call_from_python(problem_name='17A-6.cnf.gz.no_w.cnf',\
-    
+
 
     # lb, sat_solver_time, timeout = find_lower_bound_call_from_python(problem_name='50-12-5-q.cnf.gz.no_w.cnf',\
     # lb, sat_solver_time, timeout = find_lower_bound_call_from_python(problem_name='75-14-2-q.cnf.gz.no_w.cnf',\
@@ -3765,9 +3811,16 @@ if __name__ == '__main__':
     # lb, sat_solver_time, timeout = find_lower_bound_call_from_python(problem_name='sat-grid-pbl-0015.cnf',\
     # lb, sat_solver_time, timeout = find_lower_bound_call_from_python(problem_name='tire-1.cnf',\
     # lb, sat_solver_time, timeout = find_lower_bound_call_from_python(problem_name='hypercube.cnf',\
-        random_seed=0, var_degree=1, method='original', extra_configs=extra_configs)
-        # random_seed=0, var_degree=1.5, method='original', extra_configs=extra_configs)
+     # random_seed=0, var_degree=1.0, method='original', extra_configs=extra_configs)
+     random_seed=0, var_degree=1, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs)
+     # random_seed=0, var_degree=1.5, method='original', extra_configs=extra_configs)
     print("lower bound:", lb, "sat_solver_time:", sat_solver_time, "timeout:", timeout, "parallel_runtime:", parallel_runtime)
+
+
+    # cProfile.run("find_lower_bound_call_from_python(problem_name='90-34-3-q.cnf.gz.no_w.cnf',\
+    #     random_seed=0, var_degree=1, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs)")
+
+    print("lower bound:", lb, "sat_solver_time:", sat_solver_time, "timeout:", timeout, "parallel_runtime:", parallel_runtime)    
     exit(0)
 
 
@@ -3788,3 +3841,4 @@ if __name__ == '__main__':
     # SATISFYING_SOLUTIONS = np.array(SATISFYING_SOLUTIONS)
     SATISFYING_SOLUTIONS = []
     main()
+
