@@ -683,7 +683,7 @@ def sharp_sat_call_from_python(problem_name, time_limit):
     return time_out, solution_count, sharp_sat_time
 
 
-
+# @do_cprofile
 def find_lower_bound(start=0, method='original', return_time=False):
     """
     Find a lower bound.
@@ -1369,7 +1369,7 @@ def generateLDPC_bipartiteGraph_parameterizeF_pickEvenSampleSplit(n_constr, f, r
     print("max_product_of_marginals:", max_product_of_marginals, end=' ')
     return clauses_with_max_product_of_marginals, max_product_of_marginals, np.log(i_effective_for_max_product_of_marginals)/np.log(2)
 
-# @do_cprofile
+@do_cprofile
 def create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m, total_ones):
     '''
     Inputs:
@@ -1453,6 +1453,9 @@ def create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m, tota
 
     constraints = np.zeros((m,n))
     constraints_as_list = [[] for i in range(m)]
+    timeA = 0
+    timeB = 0
+    timeB2 = 0
     remaining_ones = total_ones # the number of ones left to allocate
     variable_index = 0 # allocate variables variable_order[variable_index:variable_index+ones_to_allocate]
     #at each iteration allocate m ones, one to each constraint.
@@ -1485,25 +1488,33 @@ def create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m, tota
             permuted_constraint_indices = [i for i in range(m)]
             np.random.shuffle(permuted_constraint_indices)
             valid_shuffling = True
+            t1_a = time.time()
             for variable_idx, constraint_idx in enumerate(permuted_constraint_indices[:ones_to_allocate]):
                 assert(constraint_idx <= m)
-                if constraints[constraint_idx, variables[variable_idx]] == 1:
+                # if constraints[constraint_idx, variables[variable_idx]] == 1:
+                if variables[variable_idx] in constraints_as_list[constraint_idx]:
                     valid_shuffling = False
                     tries_to_get_valid_assignment += 1
-                    assert(variables[variable_idx] in constraints_as_list[constraint_idx])
+                    # assert(variables[variable_idx] in constraints_as_list[constraint_idx])
                     break
-                else:
-                    assert(variables[variable_idx] not in constraints_as_list[constraint_idx])
-
+                # else:
+                #     assert(variables[variable_idx] not in constraints_as_list[constraint_idx])
+            t1_b = time.time()
+            timeA += t1_b-t1_a
         if tries_to_get_valid_assignment > 1:
             print("we need", tries_to_get_valid_assignment, "tries to get a valid assignment")
 
+        t1_c = time.time()
         for (variable_idx, constraint_idx) in enumerate(permuted_constraint_indices[:ones_to_allocate]):
-            assert(constraints[constraint_idx, variables[variable_idx]] == 0), (association_list, constraints[constraint_idx, variable_idx], constraints, constraint_idx, variable_idx, cost_matrix)
-            constraints[constraint_idx, variables[variable_idx]] = 1
-
+            # assert(constraints[constraint_idx, variables[variable_idx]] == 0), (association_list, constraints[constraint_idx, variable_idx], constraints, constraint_idx, variable_idx, cost_matrix)
+            # constraints[constraint_idx, variables[variable_idx]] = 1
+            t1_c1 = time.time()
             assert(variables[variable_idx] not in constraints_as_list[constraint_idx])
+            t1_c2 = time.time()            
             constraints_as_list[constraint_idx].append(variables[variable_idx])
+        t1_d = time.time()
+        timeB += t1_d - t1_c
+        timeB2 += t1_c2 - t1_c1
 
     t2 = time.time()
 
@@ -1511,24 +1522,24 @@ def create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m, tota
     clauses = []
     list_of_marginals = []
     product_of_marginals = 1.0
-    for constr_idx in range(m):
-        cur_clause = []
-        for var_idx in range(n):
-            if constraints[constr_idx, var_idx] == 1:
-                cur_clause.append(var_idx)
-        clauses.append(cur_clause)
-        if not USE_SUM_OF_SATISFYING_SOLUTIONS:
-            cur_symmetric_marginal, cur_marginal = get_clause_marginal(SATISFYING_SOLUTIONS, constraints[constr_idx])
-            list_of_marginals.append(cur_symmetric_marginal)
-            product_of_marginals *= cur_symmetric_marginal
+    # for constr_idx in range(m):
+    #     cur_clause = []
+    #     for var_idx in range(n):
+    #         if constraints[constr_idx, var_idx] == 1:
+    #             cur_clause.append(var_idx)
+    #     clauses.append(cur_clause)
+    #     if not USE_SUM_OF_SATISFYING_SOLUTIONS:
+    #         cur_symmetric_marginal, cur_marginal = get_clause_marginal(SATISFYING_SOLUTIONS, constraints[constr_idx])
+    #         list_of_marginals.append(cur_symmetric_marginal)
+    #         product_of_marginals *= cur_symmetric_marginal
 
-    list_of_marginals.sort()
+    # list_of_marginals.sort()
 
     t3 = time.time()
 
-    assert(len(clauses) == len(constraints_as_list))
-    for clause_idx in range(len(clauses)):
-        assert(set(clauses[clause_idx]) == set(constraints_as_list[clause_idx]))
+    # assert(len(clauses) == len(constraints_as_list))
+    # for clause_idx in range(len(clauses)):
+    #     assert(set(clauses[clause_idx]) == set(constraints_as_list[clause_idx]))
     print()
     print()
     print()
@@ -1539,8 +1550,15 @@ def create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m, tota
     print("t2-t1", t2-t1)
     print("t3-t2", t3-t2)
 
+    print("timeA:", timeA)
+    print("timeB:", timeB)
+    print("timeB2:", timeB2)
+    global CONSTRAINT_GENERATION_TIME
+    CONSTRAINT_GENERATION_TIME += t3 - t0 
 
-    return clauses, product_of_marginals, list_of_marginals
+
+    # return clauses, product_of_marginals, list_of_marginals
+    return constraints_as_list, product_of_marginals, list_of_marginals
 
 # def lapjv():
 #     return 5
@@ -3795,6 +3813,10 @@ if __name__ == '__main__':
 #min-12 is large and original 1 is better than 1.5, runtime 1.5: 1.6480000000000006 bound 1.5: 317.0 runtime 1: 1.0079999999999996 bound 1: 355.0
     
 
+    global CONSTRAINT_GENERATION_TIME
+    CONSTRAINT_GENERATION_TIME = 0   
+
+    t_begin = time.time()
     # before cProfile was just using this!
     lb, sat_solver_time, timeout, parallel_runtime = find_lower_bound_call_from_python(problem_name='90-34-3-q.cnf.gz.no_w.cnf',\
     # lb, sat_solver_time, timeout, parallel_runtime = find_lower_bound_call_from_python(problem_name='17A-6.cnf.gz.no_w.cnf',\
@@ -3814,13 +3836,16 @@ if __name__ == '__main__':
      # random_seed=0, var_degree=1.0, method='original', extra_configs=extra_configs)
      random_seed=0, var_degree=1, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs)
      # random_seed=0, var_degree=1.5, method='original', extra_configs=extra_configs)
+    t_end = time.time()
     print("lower bound:", lb, "sat_solver_time:", sat_solver_time, "timeout:", timeout, "parallel_runtime:", parallel_runtime)
 
 
     # cProfile.run("find_lower_bound_call_from_python(problem_name='90-34-3-q.cnf.gz.no_w.cnf',\
     #     random_seed=0, var_degree=1, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs)")
 
-    print("lower bound:", lb, "sat_solver_time:", sat_solver_time, "timeout:", timeout, "parallel_runtime:", parallel_runtime)    
+    print("lower bound:", lb, "sat_solver_time:", sat_solver_time, "timeout:", timeout, "parallel_runtime:", parallel_runtime)  
+    print("CONSTRAINT_GENERATION_TIME:", CONSTRAINT_GENERATION_TIME)  
+    print("total time:", t_end - t_begin)
     exit(0)
 
 
@@ -3841,4 +3866,3 @@ if __name__ == '__main__':
     # SATISFYING_SOLUTIONS = np.array(SATISFYING_SOLUTIONS)
     SATISFYING_SOLUTIONS = []
     main()
-
