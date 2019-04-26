@@ -954,6 +954,8 @@ def generateConstraints(n_constr, degn, force_long=False, dummy_vars=0, sampleRe
         if degn/n_constr > .4:
             print("generating long constraint")
             constraints = generateLong(n_constr)
+            # constraints = generateShort(n_constr, f=.05)
+            # constraints, fail_apriori, max_product_of_marginals = generate_iid(n_constr, dummy_vars, degn, clause_sample_repeats=1, f=.05)
             return constraints, -1, -1, False #should really check there are no empty constraints, but unlikely
         else:
             print("f =", degn/n_constr)
@@ -1043,6 +1045,33 @@ def generateLong(n_constr):
         clauses_l.append(cl)
     return clauses_l
 
+def generateShort(n_constr, f):
+    """
+    Generate random long XOR constraints of average length n/2
+    The independent set if any are taken from the
+    configuration.
+    :param n_constr: The number of constraints to generate
+    :return: A list of constraints repr. as lists of strings ending with nl
+    """
+    assert n_constr > 0
+    n = len(conf.var_set)
+    var_list = conf.var_set
+    i = n_constr
+    log.info('Generating Long: n_constr={}  n_var={}'.format(n_constr, n))
+    clauses_l = []
+    for j in range(i):
+        clause_varlist = [v for v in var_list if np.random.rand() < f]
+        is_negated = (random.randint(0, 1) > 0)
+        if is_negated:
+            out = ['x -']
+        else:
+            out = ['x ']
+        for v in clause_varlist:
+            out.append('{} '.format(v))
+        out.append('0\n')
+        cl = ''.join(out)
+        clauses_l.append(cl)
+    return clauses_l
 
 def generateLDPC(n_constr, extra_vars, degn):
     """
@@ -1369,7 +1398,7 @@ def generateLDPC_bipartiteGraph_parameterizeF_pickEvenSampleSplit(n_constr, f, r
     print("max_product_of_marginals:", max_product_of_marginals, end=' ')
     return clauses_with_max_product_of_marginals, max_product_of_marginals, np.log(i_effective_for_max_product_of_marginals)/np.log(2)
 
-@do_cprofile
+# @do_cprofile
 def create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m, total_ones):
     '''
     Inputs:
@@ -1559,6 +1588,209 @@ def create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m, tota
 
     # return clauses, product_of_marginals, list_of_marginals
     return constraints_as_list, product_of_marginals, list_of_marginals
+
+
+# @do_cprofile
+def create_biregular_adding_variables_orderByMarginals_randomInChunks_faster(n, m, total_ones):
+    '''
+    Inputs:
+    - n: (int) the number of variables
+    - m: (int) the number of constraints
+    - total_ones: (int) the number of ones in the constraint matrix
+    Create a biregular constraint matrix.  
+    1. find approximate marginals for each variable
+    2. add the varables from best marginals to worst (closest to .5 being the best), looping around until the correct density is reached
+    '''
+    t0 = time.time()
+    print("hi", "n:", n, "m:", m, "total_ones:", total_ones)
+    global SATISFYING_SOLUTIONS
+    global SATISFYING_SOLUTIONS_AS_LIST
+    global SOLUTION_COUNT
+    global SUM_OF_SATISFYING_SOLUTIONS
+    global USE_SUM_OF_SATISFYING_SOLUTIONS
+
+    if USE_SUM_OF_SATISFYING_SOLUTIONS:
+        approximate_marginals = SUM_OF_SATISFYING_SOLUTIONS/SOLUTION_COUNT
+        symmetric_marginals = np.zeros(n)
+        for idx, marginal in enumerate(approximate_marginals):
+            symmetric_marginals[idx] = min(approximate_marginals[idx], 1-approximate_marginals[idx])
+
+    else:
+        if SATISFYING_SOLUTIONS_AS_LIST:
+            assert(len(SATISFYING_SOLUTIONS) > 2) #otherwise sample without marginals
+            # compute variable marginals
+            approximate_marginals = np.zeros(n)
+            for satisfying_solution in SATISFYING_SOLUTIONS:
+                approximate_marginals += satisfying_solution
+            approximate_marginals /= len(SATISFYING_SOLUTIONS)
+            symmetric_marginals = np.zeros(n)
+            for idx, marginal in enumerate(approximate_marginals):
+                symmetric_marginals[idx] = min(approximate_marginals[idx], 1-approximate_marginals[idx])
+
+        else:
+            assert(SATISFYING_SOLUTIONS.shape[0] > 2) #otherwise sample without marginals        
+            # compute variable marginals
+            approximate_marginals = np.sum(SATISFYING_SOLUTIONS[:SOLUTION_COUNT], axis = 0)
+            assert(len(approximate_marginals) == n)
+            approximate_marginals /= SOLUTION_COUNT
+            symmetric_marginals = np.zeros(n)
+            for idx, marginal in enumerate(approximate_marginals):
+                symmetric_marginals[idx] = min(approximate_marginals[idx], 1-approximate_marginals[idx])
+
+
+    #variable_order[0] is the variable with closest marginal to .5 (given by an integer, [0,n-1])
+    #variable_order[1] is the variable with 2nd closest marginal to .5 (given by an integer, [0,n-1])
+    #...
+    #variable_order[n-1] is the variable with marginal furthest from .5 (given by an integer, [0,n-1])
+    variable_order = np.argsort(-symmetric_marginals)
+
+    MAKE_VARIANCE_HIGH_FOR_UPPER_BOUND = False
+    if MAKE_VARIANCE_HIGH_FOR_UPPER_BOUND:
+        ub_variable_order = [0 for i in range(n)]
+
+        block_count = math.ceil(n/m)
+        if block_count*m == n:
+            small_bin_size = 0
+        else:
+            small_bin_size = n - block_count*m
+
+        block_idx = 0
+        bucket_idx = 0
+        for var in variable_order:
+            new_idx = block_idx*m + bucket_idx
+            ub_variable_order[new_idx] = var
+            block_idx += 1
+            if block_idx == block_count or block_idx*m + bucket_idx >= n:
+                block_idx = 0
+                bucket_idx += 1
+        zero_count = 0
+        for var in ub_variable_order:
+            if var == 0:
+                zero_count += 1
+        assert(zero_count == 1)
+        variable_order = ub_variable_order
+
+    t1 = time.time()
+
+    dense_constraint_array = -1*np.zeros((m,int(np.ceil(total_ones/m))), dtype=np.int)
+    timeA = 0
+    timeB = 0
+    timeB2 = 0
+    remaining_ones = total_ones # the number of ones left to allocate
+    variable_index = 0 # allocate variables variable_order[variable_index:variable_index+ones_to_allocate]
+    #at each iteration allocate m ones, one to each constraint.
+    #except for the last iteration, where we allocate however many ones remain (<= m)
+    constraint_variable_idx = 0
+    while remaining_ones > 0: 
+        # print("remaining_ones:", remaining_ones)
+        if remaining_ones < m:
+            ones_to_allocate = remaining_ones
+            remaining_ones = 0
+        else:
+            ones_to_allocate = m
+            remaining_ones -= m
+        if variable_index >= n:
+            variable_index = variable_index % n
+        if variable_index+ones_to_allocate < n:
+            variables = variable_order[variable_index:variable_index+ones_to_allocate]
+        else:
+            ones_at_end = n - variable_index
+            ones_at_beginning = ones_to_allocate - ones_at_end
+            variables = list(variable_order[variable_index:])
+            variables_at_begining = list(variable_order[:ones_at_beginning])
+            variables.extend(variables_at_begining)
+        assert(len(variables) == ones_to_allocate and len(variable_order) == n)
+
+        variable_index += ones_to_allocate
+
+        valid_shuffling = False #we can't add a variable to a constraint that it is already in
+        tries_to_get_valid_assignment=1
+        while not valid_shuffling:
+            permuted_constraint_indices = [i for i in range(m)]
+            np.random.shuffle(permuted_constraint_indices)
+            valid_shuffling = True
+            t1_a = time.time()
+            # for variable_idx, constraint_idx in enumerate(permuted_constraint_indices[:ones_to_allocate]):
+            #     assert(constraint_idx <= m)
+            #     # if constraints[constraint_idx, variables[variable_idx]] == 1:
+            #     if variables[variable_idx] in constraints_as_list[constraint_idx]:
+            #         valid_shuffling = False
+            #         tries_to_get_valid_assignment += 1
+            #         # assert(variables[variable_idx] in constraints_as_list[constraint_idx])
+            #         break
+            #     # else:
+            #     #     assert(variables[variable_idx] not in constraints_as_list[constraint_idx])
+            t1_b = time.time()
+            timeA += t1_b-t1_a
+        if tries_to_get_valid_assignment > 1:
+            print("we need", tries_to_get_valid_assignment, "tries to get a valid assignment")
+
+        t1_c = time.time()
+        for (variable_idx, constraint_idx) in enumerate(permuted_constraint_indices[:ones_to_allocate]):
+            # # assert(constraints[constraint_idx, variables[variable_idx]] == 0), (association_list, constraints[constraint_idx, variable_idx], constraints, constraint_idx, variable_idx, cost_matrix)
+            # # constraints[constraint_idx, variables[variable_idx]] = 1
+            # t1_c1 = time.time()
+            # assert(variables[variable_idx] not in constraints_as_list[constraint_idx])
+            # t1_c2 = time.time()            
+            # constraints_as_list[constraint_idx].append(variables[variable_idx])
+            dense_constraint_array[constraint_idx, constraint_variable_idx] = variables[variable_idx]
+        constraint_variable_idx += 1
+
+        t1_d = time.time()
+        timeB += t1_d - t1_c
+        # timeB2 += t1_c2 - t1_c1
+
+    t2 = time.time()
+
+    # return constraints
+    clauses = []
+    list_of_marginals = []
+    product_of_marginals = 1.0
+    # for constr_idx in range(m):
+    #     cur_clause = []
+    #     for var_idx in range(n):
+    #         if constraints[constr_idx, var_idx] == 1:
+    #             cur_clause.append(var_idx)
+    #     clauses.append(cur_clause)
+    #     if not USE_SUM_OF_SATISFYING_SOLUTIONS:
+    #         cur_symmetric_marginal, cur_marginal = get_clause_marginal(SATISFYING_SOLUTIONS, constraints[constr_idx])
+    #         list_of_marginals.append(cur_symmetric_marginal)
+    #         product_of_marginals *= cur_symmetric_marginal
+
+    # list_of_marginals.sort()
+
+    # constraints_as_list = []
+    # for constraint_idx in range(m):
+    #     constraints_as_list.append([i for i in dense_constraint_array[constraint_idx]])
+    #     if constraints_as_list[constraint_idx][-1] == -1:
+    #         del(constraints_as_list[constraint_idx][-1])
+
+    t3 = time.time()
+
+    # assert(len(clauses) == len(constraints_as_list))
+    # for clause_idx in range(len(clauses)):
+    #     assert(set(clauses[clause_idx]) == set(constraints_as_list[clause_idx]))
+    print()
+    print()
+    print()
+    print()
+    print('!'*80)
+    print("t3-t0", t3-t0)
+    print("t1-t0", t1-t0)
+    print("t2-t1", t2-t1)
+    print("t3-t2", t3-t2)
+
+    print("timeA:", timeA)
+    print("timeB:", timeB)
+    print("timeB2:", timeB2)
+    global CONSTRAINT_GENERATION_TIME
+    CONSTRAINT_GENERATION_TIME += t3 - t0 
+
+
+    # return clauses, product_of_marginals, list_of_marginals
+    # return constraints_as_list, product_of_marginals, list_of_marginals
+    return dense_constraint_array, product_of_marginals, list_of_marginals
+
 
 # def lapjv():
 #     return 5
@@ -2046,7 +2278,9 @@ def generateLDPC_bipartiteGraph_parameterizeF_pickEvenSampleSplit_perConstraint(
         clauses_with_even_marginals, product_of_marginals, list_of_marginals = create_biregular_adding_variables_orderByMarginals_assignmentProblem(n, m=n_constr, total_ones=sum(constraint_degseq))
     elif method == 'bi_regular_order_vars_by_marginals_randomChunks':
         assert(sum(constraint_degseq) == sum(variable_degseq))
-        clauses_with_even_marginals, product_of_marginals, list_of_marginals = create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m=n_constr, total_ones=sum(constraint_degseq))
+        # clauses_with_even_marginals, product_of_marginals, list_of_marginals = create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m=n_constr, total_ones=sum(constraint_degseq))
+        clauses_with_even_marginals, product_of_marginals, list_of_marginals = create_biregular_adding_variables_orderByMarginals_randomInChunks_faster(n, m=n_constr, total_ones=sum(constraint_degseq))
+
     else:
         assert(False)
     # print("product_of_marginals:", product_of_marginals)
@@ -3079,6 +3313,7 @@ def convert_standardClause_with_duplicates(clause, n_vars, dup_idx, duplication_
 def parse_cryptominisat_output(output):
     # print('-'*80)
     # print('hi, parse_cryptominisat_output')
+    t_begin = time.time()    
     if output is None:
         return 'ERROR', math.nan, math.nan  # Shouldn't reach anywhere,normally
     version = conf.cmsat_major_version
@@ -3093,22 +3328,64 @@ def parse_cryptominisat_output(output):
     global USE_SUM_OF_SATISFYING_SOLUTIONS
     global SUM_OF_SATISFYING_SOLUTIONS
     var_list = conf.var_set
+
+    variable_index_to_val_dict = {}
+    for idx, val in enumerate(var_list):
+        variable_index_to_val_dict[int(val)] = idx
+
+    addition_time = 0
+    solution_construction_time = 0
+    append_time = 0
+    array_creation_time = 0
+    iteration_time = 0
+    array_setting_time = 0
+    checking_if_ind_var_time = 0
+    t_06 = -np.inf
     if version == 5:
         # print('output from cryptominisat5:')
         # print(output)
         # print()            
         current_solution = []
+        # print('&'*80)
+        # print('&'*80)
+        # print('&'*80)
+        # print('&'*80)
+        # print('cryptominisat output')
         for line in output.split('\n'):
+            # print(line)
             if not line.startswith('v ') and len(current_solution) > 0:
+                t_00 = 0#time.time()
                 solutions.append(current_solution)
+                t_01 = 0#time.time()
+                append_time += t_01 - t_00
                 assert(current_solution[-1] == '0')
+                t_02 = 0#time.time()
                 solution_as_array = np.zeros(len(var_list))
+                t_04 = 0#time.time()                
                 for idx, val in enumerate(current_solution):
-                    if int(val) > 0 and int(val) in var_list:
+                    t_05 = 0#time.time()
+                    iteration_time += t_05 - t_04
+                    # if int(val) > 0 and int(val) in var_list:
+                    if int(val) > 0 and int(val) in variable_index_to_val_dict:
+                        t_06 = 0#time.time()
                         # solution_as_array[idx] = 1.0
-                        solution_as_array[var_list.index(int(val))] = 1.0
+                        # solution_as_array[var_list.index(int(val))] = 1.0
+                        # assert(var_list.index(int(val)) == variable_index_to_val_dict[int(val)])
+                        solution_as_array[variable_index_to_val_dict[int(val)]] = 1.0
+                        t_07 = 0#time.time()
+                        array_setting_time += t_07 - t_06
+
+                    t_04 = 0#time.time()
+                    if t_06 > t_05:
+                        checking_if_ind_var_time +=t_06 - t_05
+                    else:
+                        checking_if_ind_var_time +=t_04 - t_05
+
+                t_03 = 0#time.time()
+                array_creation_time += t_03 - t_02   
                 # if nsol == 1:
                 if nsol >= 1:
+                    t0 = 0#time.time()
                     if USE_SUM_OF_SATISFYING_SOLUTIONS:
                         if SUM_OF_SATISFYING_SOLUTIONS is None:
                             SUM_OF_SATISFYING_SOLUTIONS = np.zeros(len(solution_as_array))
@@ -3116,6 +3393,8 @@ def parse_cryptominisat_output(output):
                         else:
                             SUM_OF_SATISFYING_SOLUTIONS += solution_as_array
                         SOLUTION_COUNT += 1
+                        t1 = 0#time.time()
+                        addition_time += t1 - t0
                     elif SATISFYING_SOLUTIONS_AS_LIST:
                         SATISFYING_SOLUTIONS.append(solution_as_array)
                         if SATISFYING_SOLUTIONS_ARRAY is None:
@@ -3135,6 +3414,7 @@ def parse_cryptominisat_output(output):
                         SOLUTION_COUNT += 1
                 # print("len(SATISFYING_SOLUTIONS):", len(SATISFYING_SOLUTIONS))
                 current_solution = []
+            t2 = 0#time.time()
             line = line.strip()
             if line.startswith('c Number of solutions found until now:'):
                 nsol = int(line.split('now:')[1].strip())
@@ -3149,6 +3429,8 @@ def parse_cryptominisat_output(output):
                 res_type = 'INDET'
             elif line.startswith('v '):
                 current_solution.extend(line.split()[1:])
+            t3 = 0#time.time()
+            solution_construction_time += t3 - t2
         # print("all solutions:")
         # print(solutions)
         # print(SATISFYING_SOLUTIONS)
@@ -3177,6 +3459,20 @@ def parse_cryptominisat_output(output):
     else:
         raise Exception('cmsat parsing for this version not yet implemented')
     # print(res_type, nsol, ctime)
+
+    t_end = time.time()    
+    global C_MINISAT_OUPUT_PARSE_TIME
+    print('!'*80)
+    print('cur parse time:', t_end - t_begin)
+    print('solution_construction_time:', solution_construction_time)
+    print('addition_time:', addition_time)
+    print('append_time:', append_time)
+    print('array_creation_time:', array_creation_time)
+    print('iteration_time:', iteration_time)
+    print('array_setting_time:', array_setting_time)
+    print('checking_if_ind_var_time:', checking_if_ind_var_time)
+    C_MINISAT_OUPUT_PARSE_TIME += t_end - t_begin
+
     return res_type, nsol, ctime
 
 
@@ -3796,7 +4092,7 @@ if __name__ == '__main__':
                      # - True: sample b_i according to the constraint's marginal
                      # - False: sample b_i with probability .5
                      'adaptive_b': True,
-                     'sum_of_T_solutions':1,
+                     'sum_of_T_solutions':10,
                     }
 
 
@@ -3816,6 +4112,9 @@ if __name__ == '__main__':
     global CONSTRAINT_GENERATION_TIME
     CONSTRAINT_GENERATION_TIME = 0   
 
+    global C_MINISAT_OUPUT_PARSE_TIME
+    C_MINISAT_OUPUT_PARSE_TIME = 0  
+
     t_begin = time.time()
     # before cProfile was just using this!
     lb, sat_solver_time, timeout, parallel_runtime = find_lower_bound_call_from_python(problem_name='90-34-3-q.cnf.gz.no_w.cnf',\
@@ -3833,8 +4132,8 @@ if __name__ == '__main__':
     # lb, sat_solver_time, timeout = find_lower_bound_call_from_python(problem_name='sat-grid-pbl-0015.cnf',\
     # lb, sat_solver_time, timeout = find_lower_bound_call_from_python(problem_name='tire-1.cnf',\
     # lb, sat_solver_time, timeout = find_lower_bound_call_from_python(problem_name='hypercube.cnf',\
-     # random_seed=0, var_degree=1.0, method='original', extra_configs=extra_configs)
-     random_seed=0, var_degree=1, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs)
+     # random_seed=1, var_degree=1.3, method='original', extra_configs=extra_configs)
+     random_seed=2, var_degree=1, method='bi_regular_order_vars_by_marginals_randomChunks', extra_configs=extra_configs)
      # random_seed=0, var_degree=1.5, method='original', extra_configs=extra_configs)
     t_end = time.time()
     print("lower bound:", lb, "sat_solver_time:", sat_solver_time, "timeout:", timeout, "parallel_runtime:", parallel_runtime)
@@ -3845,6 +4144,7 @@ if __name__ == '__main__':
 
     print("lower bound:", lb, "sat_solver_time:", sat_solver_time, "timeout:", timeout, "parallel_runtime:", parallel_runtime)  
     print("CONSTRAINT_GENERATION_TIME:", CONSTRAINT_GENERATION_TIME)  
+    print("C_MINISAT_OUPUT_PARSE_TIME:", C_MINISAT_OUPUT_PARSE_TIME)  
     print("total time:", t_end - t_begin)
     exit(0)
 
