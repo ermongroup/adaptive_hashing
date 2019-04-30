@@ -613,7 +613,7 @@ def find_lower_bound_call_from_python(problem_name, random_seed, var_degree, met
     return lb, sat_solver_time, time_out, SAT_SOLVER_TIME_BETTER_PRECISION_PARALLEL
 
 
-def sharp_sat_call_from_python(problem_name, time_limit):
+def sharp_sat_call_from_python(problem_name, time_limit, problem_directory='/atlas/u/jkuck/approxmc/counting2/'):
     global SATISFYING_SOLUTIONS
     SATISFYING_SOLUTIONS = []
     global SAT_SOLVER_TIME
@@ -623,53 +623,54 @@ def sharp_sat_call_from_python(problem_name, time_limit):
     global CONSTRAINTS_CALLED_COUNT
     CONSTRAINTS_CALLED_COUNT = 0
 
-    args = Bunch()
+    # args = Bunch()
 
-    args.input_filename = '/atlas/u/jkuck/approxmc/counting2/%s' % problem_name
-    # args.input_filename = '/atlas/u/jkuck/low_density_parity_checks/SAT_problems_cnf/%s' % problem_name
+    # args.input_filename = '/atlas/u/jkuck/approxmc/counting2/%s' % problem_name
+    # # args.input_filename = '/atlas/u/jkuck/low_density_parity_checks/SAT_problems_cnf/%s' % problem_name
 
-    # args.working_dir = '/atlas/u/jkuck/F2/fireworks/augform'
-    args.working_dir = os.getcwd()        
-    args.keep_cnf = False
-    args.random_seed = False
-    args.var_degree = None
-    args.cmsat_exe = '/atlas/u/jkuck/software/cryptominisat_BIRD/cryptominisat-5.6.6/build/cryptominisat5'
-    # args.cmsat_exe = '/atlas/u/jkuck/XORModelCount/SATModelCount/cryptominisat'
-    args.cmsat_version = 5
-    # args.sharpsat_exe = 
-    args.error_prob = .05
-    args.max_time = time_limit
+    # # args.working_dir = '/atlas/u/jkuck/F2/fireworks/augform'
+    # args.working_dir = os.getcwd()        
+    # args.keep_cnf = False
+    # args.random_seed = False
+    # args.var_degree = None
+    # args.cmsat_exe = '/atlas/u/jkuck/software/cryptominisat_BIRD/cryptominisat-5.6.6/build/cryptominisat5'
+    # # args.cmsat_exe = '/atlas/u/jkuck/XORModelCount/SATModelCount/cryptominisat'
+    # args.cmsat_version = 5
+    # # args.sharpsat_exe = 
+    # args.error_prob = .05
+    # args.max_time = time_limit
 
-    args.mode = 'lb'
-    args.skip_sharpsat = True
+    # args.mode = 'lb'
+    # args.skip_sharpsat = True
 
-    args.sharpsat_exe = '/atlas/u/jkuck/sharpSAT/build/Release/sharpSAT'
-    args.lower_bound = math.nan
-    args.upper_bound = math.nan
-    args.confidence_radius = None
-    args.lb_n_iter = math.nan
-    args.ub_n_iter = math.nan
-    args.extra_configs = None
+    # args.sharpsat_exe = '/atlas/u/jkuck/sharpSAT/build/Release/sharpSAT'
+    # args.lower_bound = math.nan
+    # args.upper_bound = math.nan
+    # args.confidence_radius = None
+    # args.lb_n_iter = math.nan
+    # args.ub_n_iter = math.nan
+    # args.extra_configs = None
 
-    ##### other setup #####
-    formula_lines = []  # The lines of the original cnf file
-    global start_time
-    start_time = time.process_time()
-    global aug_counter
-    aug_counter = 0  # Counter for augmented formulas filenames
-    global subprocess_cumulative_time
-    subprocess_cumulative_time = 0  # Accumulate the time spent in subprocesses    
+    # ##### other setup #####
+    # formula_lines = []  # The lines of the original cnf file
+    # global start_time
+    # start_time = time.process_time()
+    # global aug_counter
+    # aug_counter = 0  # Counter for augmented formulas filenames
+    # global subprocess_cumulative_time
+    # subprocess_cumulative_time = 0  # Accumulate the time spent in subprocesses    
 
-    global conf
-    conf = Config()
-    conf.setup(args)
-    print("conf.working_dir:", conf.working_dir)
+    # global conf
+    # conf = Config()
+    # conf.setup(args)
+    # print("conf.working_dir:", conf.working_dir)
 
     #a triplet (time_out, solution_count, ctime) such that:
     #            time_out: [boolean] has the time_limit been reached without finishing?
     #            solution_count: number of solutions (if time_out is False)
     #            ct: The processor time consumed in the subprocess
-    input_filename = '/atlas/u/jkuck/approxmc/counting2/%s' % problem_name 
+    input_filename = '%s%s' % (problem_directory, problem_name) 
+    # input_filename = '/atlas/u/jkuck/approxmc/counting2/%s' % problem_name 
     # input_filename = '/atlas/u/jkuck/low_density_parity_checks/SAT_problems_cnf/%s' % problem_name
 
     t0 = resource.getrusage(resource.RUSAGE_CHILDREN).ru_utime
@@ -3363,6 +3364,7 @@ def parse_cryptominisat_output(output):
                 solution_as_array = np.zeros(len(var_list))
                 t_04 = 0#time.time()                
                 for idx, val in enumerate(current_solution):
+                    assert(idx + 1 == abs(int(val)) or idx + 1 == len(current_solution)), (idx, val, len(current_solution))
                     t_05 = 0#time.time()
                     iteration_time += t_05 - t_04
                     # if int(val) > 0 and int(val) in var_list:
