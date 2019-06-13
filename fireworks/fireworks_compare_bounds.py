@@ -4,6 +4,7 @@ import time
 import os
 import math
 import resource
+import decimal
 
 from fireworks import Firework, Workflow, FWorker, LaunchPad
 from fireworks.utilities.fw_utilities import explicit_serialize
@@ -631,10 +632,12 @@ def parse_dsharp_output(output):
     for i, line in enumerate(all_lines):
         line = line.strip()
         if line.startswith('# of solutions:'):
-            if line.split('\t')[-1] == '-nan':
+            solution_count = line.split('\t')[-1]   
+            if solution_count in ['-nan', 'inf']:
                 nsol = np.nan
             else:
-                nsol = int(line.split('\t')[-1])
+                # nsol = int(solution_count)
+                nsol = int(decimal.Decimal(solution_count))
     return nsol, 0    
 
 if __name__=="__main__":

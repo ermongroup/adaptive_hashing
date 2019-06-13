@@ -69,9 +69,10 @@ class Config:
         # exhausted)
         self.alg1_loop_timeout = None
         self.degn = math.nan  # Average variable degree of LDPC code
-        self.alg1_maxsol = 4
-        # self.alg1_maxsol = 128
+        self.alg1_maxsol = 4 #this is s, the solution cutoff, in algorithm 1 SPARSE-COUNT in the paper "Adaptive Hashing for Model Counting"
+        # self.alg1_maxsol/2 = 128
         self.alg1_threshold_coeff = 2
+        assert(self.alg1_threshold_coeff == self.alg1_maxsol/2)
         self.alg1_n_iter = math.nan
         self.alg2_n_iter = math.nan
         self.alg2_loop_timeout = math.nan
@@ -805,6 +806,9 @@ def find_lower_bound(start=0, method='original', return_time=False):
         return lower_bound, SAT_SOLVER_TIME_BETTER_PRECISION, False
     # i=35
     # lower_bound=35
+
+    ###############################################################################################################
+    assert(False), "should ignore code below!!"
 
     print()
     print('-'*80)
@@ -3674,7 +3678,7 @@ def sharpsat_count(formula, time_limit):
     return n_sol is math.nan, n_sol, ctime
 
 
-def algorithm1(n_constr, n_iter, sampleRepeats=1, method='original'):
+def algorithm1(n_constr, n_iter, sampleRepeats=1, method='original', VERBOSE=False):
     """
     Determine if 2^(n_constr) is a lower bound with error probability
     exp(-n_iter/8)
@@ -3690,7 +3694,7 @@ def algorithm1(n_constr, n_iter, sampleRepeats=1, method='original'):
     # print("sampleRepeats:", sampleRepeats)
     global SOLUTION_COUNT
     global SAT_SOLVER_TIME_BETTER_PRECISION_PARALLEL
-    print("algorithm 1 called with", n_constr, "constraints (there are", SOLUTION_COUNT, "satisfying_solutions found currently)")
+    print("algorithm 1 called with", n_constr, "constraints (there are", SOLUTION_COUNT, "satisfying_solutions found currently) and n_iter =", n_iter)
     marginal_products = []
     solution_counts = []
 
@@ -3704,7 +3708,9 @@ def algorithm1(n_constr, n_iter, sampleRepeats=1, method='original'):
         time_out = False
         return (bound_holds, time_out)
 
+    assert(conf.alg1_maxsol == 4)
     threshold = conf.alg1_threshold_coeff * n_iter
+    assert(threshold == n_iter*conf.alg1_maxsol/2)
     z = 0  # The capital Z in the paper
     bound_holds = False
     # print("n_iter:", n_iter, "threshold", threshold)
@@ -3769,7 +3775,7 @@ def algorithm1(n_constr, n_iter, sampleRepeats=1, method='original'):
 
         SAT_SOLVER_TIME_BETTER_PRECISION_PARALLEL += np.max(cur_runtimes)
         assert(len(cur_solution_counts) == conf.extra_configs['sum_of_T_solutions'])
-        n = min(4, np.sum(cur_solution_counts)/conf.extra_configs['sum_of_T_solutions'])
+        n = min(conf.alg1_maxsol, np.sum(cur_solution_counts)/conf.extra_configs['sum_of_T_solutions'])
         print("cur_solution_counts:", cur_solution_counts)
 
         # print('!'*80)
@@ -3788,54 +3794,56 @@ def algorithm1(n_constr, n_iter, sampleRepeats=1, method='original'):
 
     # positive_constraints = get_non_zero_constraints(all_duplicate_constraints)
     # aug_form = setup_duplicated_augmented_formula(positive_constraints)
-    if n_iter == 24:
-        pass
-        # time_out, b, n, ctime = sat_count(aug_form, max_time, 48)
-        # print('!'*80)
-        # print("with duplication, time:", ctime, "solutions found:", n)
-        # print("total_individual_solution_count:", total_individual_solution_count)
-        # print()
+    if VERBOSE:
+        if n_iter == 24:
+            pass
+            # time_out, b, n, ctime = sat_count(aug_form, max_time, 48)
+            # print('!'*80)
+            # print("with duplication, time:", ctime, "solutions found:", n)
+            # print("total_individual_solution_count:", total_individual_solution_count)
+            # print()
 
 
-    else:
-        pass
-        # time_out, b, n, ctime = sat_count(aug_form, max_time, conf.alg1_maxsol*n_iter)
-        # print('!'*80)
-        # print("with duplication, time:", ctime, "solutions found:", n)
-        # print("total_individual_solution_count:", total_individual_solution_count)
-        # print()        
-        # assert(n >= total_individual_solution_count), (n, total_individual_solution_count)
+        else:
+            pass
+            # time_out, b, n, ctime = sat_count(aug_form, max_time, conf.alg1_maxsol*n_iter)
+            # print('!'*80)
+            # print("with duplication, time:", ctime, "solutions found:", n)
+            # print("total_individual_solution_count:", total_individual_solution_count)
+            # print()        
+            # assert(n >= total_individual_solution_count), (n, total_individual_solution_count)
 
 
 
     end_time = SAT_SOLVER_TIME_BETTER_PRECISION
-    print("mean i_effective:", np.mean(list_of_i_effectives))
-    print("algorithm 1 spent", end_time - begin_time, "seconds calling the sat solver")
-    print("correlation coefficient between product of marginals and satisfying solutions")
-    print(np.corrcoef(marginal_products, solution_counts))
-    print("sum of solutions found in first 24 problems:", sum(solution_counts[:24]))
-    print("sum of solutions found in all", len(solution_counts), "problems:", sum(solution_counts))
-    print("number of SAT found in first 24 problems:", 24 - solution_counts[:24].count(0))
+    if VERBOSE:
+        print("mean i_effective:", np.mean(list_of_i_effectives))
+        print("algorithm 1 spent", end_time - begin_time, "seconds calling the sat solver")
+        print("correlation coefficient between product of marginals and satisfying solutions")
+        print(np.corrcoef(marginal_products, solution_counts))
+        print("sum of solutions found in first 24 problems:", sum(solution_counts[:24]))
+        print("sum of solutions found in all", len(solution_counts), "problems:", sum(solution_counts))
+        print("number of SAT found in first 24 problems:", 24 - solution_counts[:24].count(0))
 
-    if len(solution_counts) == 240:
-        sat_count_group_by_10 = 0
-        sum_of_solutions_pick_groups_of_ten = 0
-        for grp_idx in range(0, 240, 10):
-            cur_max_idx = marginal_products[grp_idx:grp_idx+10].index(max(marginal_products[grp_idx:grp_idx+10]))
-            sum_of_solutions_pick_groups_of_ten += solution_counts[grp_idx:grp_idx+10][cur_max_idx]
-            if solution_counts[grp_idx:grp_idx+10][cur_max_idx] > 0:
-                sat_count_group_by_10 += 1
-        print("sum of solutions from max product marginals grouped by 10:", sum_of_solutions_pick_groups_of_ten)
-        print("number of SAT from max product marginals grouped by 10:", sat_count_group_by_10)
-    else:
-        print("len(solution_counts):", len(solution_counts))
-    # marginal_products, solution_counts = (list(x) for x in zip(*sorted(zip(marginal_products, solution_counts))))
-    print("marginal_products:", marginal_products)
-    print("solution_counts:", solution_counts)
-    marginal_products, solution_counts = [list(x) for x in zip(*sorted(zip(marginal_products, solution_counts), key=lambda pair: pair[0]))]
-    print("sum of solutions found in 24 problems with largest marginal_products:", sum(solution_counts[-24:]))
-    print("number of SAT from 24 problems with largest marginal_products:", 24-solution_counts[-24:].count(0))
-    print()
+        if len(solution_counts) == 240:
+            sat_count_group_by_10 = 0
+            sum_of_solutions_pick_groups_of_ten = 0
+            for grp_idx in range(0, 240, 10):
+                cur_max_idx = marginal_products[grp_idx:grp_idx+10].index(max(marginal_products[grp_idx:grp_idx+10]))
+                sum_of_solutions_pick_groups_of_ten += solution_counts[grp_idx:grp_idx+10][cur_max_idx]
+                if solution_counts[grp_idx:grp_idx+10][cur_max_idx] > 0:
+                    sat_count_group_by_10 += 1
+            print("sum of solutions from max product marginals grouped by 10:", sum_of_solutions_pick_groups_of_ten)
+            print("number of SAT from max product marginals grouped by 10:", sat_count_group_by_10)
+        else:
+            print("len(solution_counts):", len(solution_counts))
+        # marginal_products, solution_counts = (list(x) for x in zip(*sorted(zip(marginal_products, solution_counts))))
+        print("marginal_products:", marginal_products)
+        print("solution_counts:", solution_counts)
+        marginal_products, solution_counts = [list(x) for x in zip(*sorted(zip(marginal_products, solution_counts), key=lambda pair: pair[0]))]
+        print("sum of solutions found in 24 problems with largest marginal_products:", sum(solution_counts[-24:]))
+        print("number of SAT from 24 problems with largest marginal_products:", 24-solution_counts[-24:].count(0))
+        print()
 
     time_out = False
     return (bound_holds, time_out)
