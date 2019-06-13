@@ -90,6 +90,7 @@ class Config:
         self.mode = args.mode
         if not os.path.isfile(args.input_filename):
             log.error('File {} does not exist.'.format(args.input_filename))
+            print('File {} does not exist.'.format(args.input_filename))
             exit(101)
         else:
             self.formula_filename = args.input_filename
@@ -217,7 +218,9 @@ class Config:
         if not math.isnan(args.lb_n_iter):
             self.alg1_n_iter = args.lb_n_iter
         else:
-            self.alg1_n_iter = int(math.ceil(-8 * math.log(er_prob)))
+            # self.alg1_n_iter = int(math.ceil(-8 * math.log(er_prob)))
+            n_var = len(conf.var_set)
+            self.alg1_n_iter = int(math.ceil(8 * math.log(math.ceil(math.log(n_var,2))/er_prob)))
         self.alg1_loop_timeout = args.max_time / min(5, self.alg1_n_iter)
 
     def setup_f2_alg(self, args, er_prob):
@@ -625,7 +628,8 @@ def sharp_sat_call_from_python(problem_name, time_limit, problem_directory='/atl
 
     args = Bunch()
 
-    args.input_filename = '/atlas/u/jkuck/approxmc/counting2/%s' % problem_name
+    args.input_filename = '%s/%s' % (problem_directory, problem_name) 
+
     # args.input_filename = '/atlas/u/jkuck/low_density_parity_checks/SAT_problems_cnf/%s' % problem_name
 
     # args.working_dir = '/atlas/u/jkuck/F2/fireworks/augform'
@@ -1586,8 +1590,8 @@ def create_biregular_adding_variables_orderByMarginals_randomInChunks(n, m, tota
     print("timeA:", timeA)
     print("timeB:", timeB)
     print("timeB2:", timeB2)
-    global CONSTRAINT_GENERATION_TIME
-    CONSTRAINT_GENERATION_TIME += t3 - t0 
+    # global CONSTRAINT_GENERATION_TIME
+    # CONSTRAINT_GENERATION_TIME += t3 - t0 
 
 
     # return clauses, product_of_marginals, list_of_marginals
@@ -1787,8 +1791,8 @@ def create_biregular_adding_variables_orderByMarginals_randomInChunks_faster(n, 
     print("timeA:", timeA)
     print("timeB:", timeB)
     print("timeB2:", timeB2)
-    global CONSTRAINT_GENERATION_TIME
-    CONSTRAINT_GENERATION_TIME += t3 - t0 
+    # global CONSTRAINT_GENERATION_TIME
+    # CONSTRAINT_GENERATION_TIME += t3 - t0 
 
 
     # return clauses, product_of_marginals, list_of_marginals
@@ -3466,17 +3470,17 @@ def parse_cryptominisat_output(output):
     # print(res_type, nsol, ctime)
 
     t_end = time.time()    
-    global C_MINISAT_OUPUT_PARSE_TIME
-    print('!'*80)
-    print('cur parse time:', t_end - t_begin)
-    print('solution_construction_time:', solution_construction_time)
-    print('addition_time:', addition_time)
-    print('append_time:', append_time)
-    print('array_creation_time:', array_creation_time)
-    print('iteration_time:', iteration_time)
-    print('array_setting_time:', array_setting_time)
-    print('checking_if_ind_var_time:', checking_if_ind_var_time)
-    C_MINISAT_OUPUT_PARSE_TIME += t_end - t_begin
+    # global C_MINISAT_OUPUT_PARSE_TIME
+    # print('!'*80)
+    # print('cur parse time:', t_end - t_begin)
+    # print('solution_construction_time:', solution_construction_time)
+    # print('addition_time:', addition_time)
+    # print('append_time:', append_time)
+    # print('array_creation_time:', array_creation_time)
+    # print('iteration_time:', iteration_time)
+    # print('array_setting_time:', array_setting_time)
+    # print('checking_if_ind_var_time:', checking_if_ind_var_time)
+    # C_MINISAT_OUPUT_PARSE_TIME += t_end - t_begin
 
     return res_type, nsol, ctime
 
@@ -3507,7 +3511,7 @@ def parse_sharpsat_output(output):
     return nsol, ctime
 
 
-def execute_cmd(sh_cmd, timeout, output_parser, plain_timeout=False):
+def execute_cmd(sh_cmd, timeout, output_parser, plain_timeout=False, count_time=True):
     """ Do the following:
     * Execute the command
     * Save and parse the output
@@ -3562,8 +3566,9 @@ def execute_cmd(sh_cmd, timeout, output_parser, plain_timeout=False):
     assert (not math.isnan(ctime))
     subprocess_cumulative_time += ctime
 
-    global SAT_SOLVER_TIME
-    SAT_SOLVER_TIME += ctime
+    if count_time:
+        global SAT_SOLVER_TIME
+        SAT_SOLVER_TIME += ctime
     # print("%"*80)
     # print("ctime low precision:", ctime)
 

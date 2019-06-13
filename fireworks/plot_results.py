@@ -494,6 +494,7 @@ if __name__=="__main__":
     # runtimes_for_each_method_1, lower_bounds_for_each_method_1 = get_results('/atlas/u/jkuck/F2/fireworks/cluster_results_orderVarsByMarginals_randomInChunks_Tsol10_parallelRuntime', random_seed=1)
     
     plot_folder='./plots_orderVarsByMarginals_randomInChunks_Tsol10_parallelRuntime_postUAI/'
+    plot_folder='./plots_cameraReadyWithDSharp/'
     # plot_computation_tradeoff(plot_folder)
     # exit(0)
     # plot_method_1_better_than_2(lower_bounds_for_each_method_0, lower_bounds_for_each_method_1,\
