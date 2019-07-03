@@ -1,6 +1,6 @@
-# F2
+# UPDATE README
 
-F2 is a fast and flexible probabilistic approximate model counter for
+Code based on F2, a fast and flexible probabilistic approximate model counter for
 CNF formulas. It implements the algorithms in the following paper published in
 the SAT2018 conference:
 
